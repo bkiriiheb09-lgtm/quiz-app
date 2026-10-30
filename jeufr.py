@@ -204,7 +204,7 @@ def quiz(test_name):
             const countdown = setInterval(() => {
                 let minutes = Math.floor(timeLeft / 60);
                 let seconds = timeLeft % 60;
-                timerElement.innerHTML = ⏳ الوقت المتبقي: ${{minutes.toString().padStart(2, '0')}}:${seconds.toString().padStart(2, '0')}};
+                timerElement.innerHTML = '⏳ الوقت المتبقي: ${{minutes.toString().padStart(2, '0')}}:${seconds.toString().padStart(2, '0')}'};
                 if (timeLeft <= 0) {
                     clearInterval(countdown);
                     alert("⏰ انتهى الوقت المتبقي! سيتم إرسال إجاباتك تلقائياً.");
