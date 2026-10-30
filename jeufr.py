@@ -286,8 +286,8 @@ def student_waiting_results(test_name):
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
         
-    active_data = load_device_data()
-    active_data = load_device_data()["active_test"]
+    dev_data = load_device_data()
+    active_data = dev_data["active_test"]
     status = active_data.get('status', 'waiting')
     
     if status != 'finished':
@@ -547,13 +547,17 @@ def edit_test(test_name):
             msg = "تم إضافة السؤال بنجاح!"
         elif action == 'delete_question':
             try:
-                q_idx = int(request.form.get('q_idx'))
-                if 0 <= q_idx < len(tests[test_name]):
-                    tests[test_name].pop(q_idx)
-                    save_device_data(dev_data)
-                    msg = "تم حذف السؤال بنجاح!"
+                q_idx_val = request.form.get('q_idx')
+                if q_idx_val is not None and str(q_idx_val).isdigit():
+                    q_idx = int(q_idx_val)
+                    if 0 <= q_idx < len(tests[test_name]):
+                        tests[test_name].pop(q_idx)
+                        save_device_data(dev_data)
+                        msg = "تم حذف السؤال بنجاح!"
+                    else:
+                        msg = "رقم السؤال غير صحيح!"
                 else:
-                    msg = "رقم السؤال غير صحيح!"
+                    msg = "خطأ في تحديد السؤال المراد حذفه!"
             except Exception as e:
                 msg = f"خطأ في الحذف: {str(e)}"
 
