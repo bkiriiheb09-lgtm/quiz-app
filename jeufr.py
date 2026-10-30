@@ -26,7 +26,7 @@ def save_tests(tests):
         json.dump(tests, f, ensure_ascii=False, indent=4)
 
 # قالب الصفحة الرئيسية (اختيار الوضع أو الاختبارات)
-HTML_TEMPLATE = f"""
+HTML_TEMPLATE = """
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
