@@ -26,9 +26,10 @@ def index():
     <head>
         <meta charset="UTF-8">
         <title>Quiz Éducatif</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             body {{ font-family: Arial, sans-serif; background: #f4f7f6; text-align: center; padding: 50px; }}
-            .card {{ background: white; padding: 30px; border-radius: 10px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); display: inline-block; width: 400px; text-align: left; }}
+            .card { background: white; width: 95%; max-width: 400px; margin: 20px auto; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); box-sizing: border-box; }
             h2 {{ color: #333; }}
             button {{ background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 15px; }}
             label {{ display: block; margin: 10px 0; cursor: pointer; }}
