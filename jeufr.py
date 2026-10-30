@@ -9,20 +9,21 @@ app = Flask(__name__)
 app.secret_key = "super_secret_quiz_key_device_isolated_2026"
 
 def get_device_id():
-    """الحصول على معرف فريد ومستقل لكل جهاز/متصفح"""
+    """الحصول على معرف فريد ومستقل لكل أستاذ/جهاز"""
     if 'device_id' not in session:
         session['device_id'] = str(uuid.uuid4())
     return session['device_id']
 
-def get_device_file():
-    """تحديد اسم ملف البيانات الخاص بهذا الجهاز فقط"""
-    d_id = get_device_id()
-    safe_id = "".join(c for c in d_id if c.isalnum() or c in ('_', '-'))
+def get_teacher_file(t_id):
+    """تحديد اسم ملف البيانات الخاص بالأستاذ"""
+    safe_id = "".join(c for c in t_id if c.isalnum() or c in ('_', '-'))
     return f"device_{safe_id}.json"
 
-def load_device_data():
-    """تحميل بيانات الجهاز الحالي من ملفه الخاص"""
-    filename = get_device_file()
+def load_teacher_data(t_id):
+    """تحميل بيانات أستاذ معين"""
+    if not t_id:
+        return {"tests": {}, "active_test": {"active": "", "status": "waiting"}, "results": {}}
+    filename = get_teacher_file(t_id)
     default_data = {
         "tests": {},
         "active_test": {"active": "", "status": "waiting"},
@@ -36,14 +37,16 @@ def load_device_data():
             return default_data
     return default_data
 
-def save_device_data(data):
-    """حفظ بيانات الجهاز الحالي في ملفه الخاص"""
-    filename = get_device_file()
+def save_teacher_data(t_id, data):
+    """حفظ بيانات أستاذ معين"""
+    if not t_id:
+        return
+    filename = get_teacher_file(t_id)
     try:
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        print("Error saving device data:", e)
+        print("Error saving teacher data:", e)
 
 HTML_TEMPLATE = """
 <!doctype html>
@@ -101,25 +104,38 @@ def index():
     content = """
         <h2 style="text-align: center;">منصة الاختبارات الذكية</h2>
         <p style="text-align: center;">اختر وضع الاستخدام:</p>
-        <a href="/student_entry" class="btn">👨‍🎓 وضع التلميذ (Mode Élève)</a>
         <a href="/teacher_dashboard" class="btn" style="background: #047857;">👨‍🏫 وضع الأستاذ (Mode Enseignant)</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
 @app.route('/student_entry', methods=['GET', 'POST'])
 def student_entry():
+    teacher_id = request.args.get('teacher')
+    if teacher_id:
+        session['teacher_id'] = teacher_id
+    
+    t_id = session.get('teacher_id')
+    if not t_id:
+        content = """
+            <h2>تنبيه</h2>
+            <p>❌ الرجاء الدخول عبر مسح رمز QR الخاص بالأستاذ للالتحاق بالاختبار!</p>
+            <br>
+            <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
+        """
+        return render_template_string(HTML_TEMPLATE, content=content)
+
     if request.method == 'GET':
         session.pop('student_name', None)
         session.pop('start_time', None)
 
-    dev_data = load_device_data()
+    dev_data = load_teacher_data(t_id)
     active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     
     if not test_name:
         content = """
             <h2>تنبيه</h2>
-            <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار على هذا الجهاز حتى الآن. الرجاء الانتظار قليلاً...</p>
+            <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار حتى الآن. الرجاء الانتظار قليلاً...</p>
             <script>
                 setTimeout(function() {
                     var activeEl = document.activeElement;
@@ -146,7 +162,7 @@ def student_entry():
             existing_names = [p['name'] for p in results[test_name].get("participants", [])]
             if name not in existing_names:
                 results[test_name]["participants"].append({"name": name, "joined_at": time.time()})
-                save_device_data(dev_data)
+                save_teacher_data(t_id, dev_data)
             
             return redirect(url_for('waiting_room'))
     
@@ -166,9 +182,10 @@ def student_entry():
 @app.route('/waiting_room')
 def waiting_room():
     if 'student_name' not in session:
-        return redirect(url_for('student_entry'))
+        return redirect(url_for('/'))
     
-    dev_data = load_device_data()
+    t_id = session.get('teacher_id')
+    dev_data = load_teacher_data(t_id)
     active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     status = active_data.get('status', 'waiting')
@@ -197,16 +214,17 @@ def waiting_room():
 @app.route('/quiz/<test_name>', methods=['GET', 'POST'])
 def quiz(test_name):
     if 'student_name' not in session:
-        return redirect(url_for('student_entry'))
+        return redirect(url_for('/'))
     
-    dev_data = load_device_data()
+    t_id = session.get('teacher_id')
+    dev_data = load_teacher_data(t_id)
     active_data = dev_data["active_test"]
     if active_data.get('status') == 'finished':
         return redirect(url_for('show_final_results', test_name=test_name))
 
     tests = dev_data["tests"]
     if test_name not in tests:
-        return redirect(url_for('student_entry'))
+        return redirect(url_for('/'))
     
     questions = tests[test_name]
     results = dev_data["results"]
@@ -241,7 +259,7 @@ def quiz(test_name):
             active_data['status'] = 'finished'
             results[test_name]['status'] = 'finished'
             
-        save_device_data(dev_data)
+        save_teacher_data(t_id, dev_data)
         return redirect(url_for('student_waiting_results', test_name=test_name))
     
     session['start_time'] = time.time()
@@ -284,9 +302,10 @@ def quiz(test_name):
 @app.route('/student_waiting_results/<test_name>')
 def student_waiting_results(test_name):
     if 'student_name' not in session:
-        return redirect(url_for('student_entry'))
+        return redirect(url_for('/'))
         
-    dev_data = load_device_data()
+    t_id = session.get('teacher_id')
+    dev_data = load_teacher_data(t_id)
     active_data = dev_data["active_test"]
     status = active_data.get('status', 'waiting')
     
@@ -311,7 +330,8 @@ def student_waiting_results(test_name):
 
 @app.route('/results/<test_name>')
 def show_final_results(test_name):
-    dev_data = load_device_data()
+    t_id = session.get('teacher_id') or get_device_id()
+    dev_data = load_teacher_data(t_id)
     tests = dev_data["tests"]
     questions = tests.get(test_name, [])
     results = dev_data["results"]
@@ -343,13 +363,14 @@ def show_final_results(test_name):
         """ + correction_html + """
         
         <br>
-        <a href="/" class="btn" style="background: #6b7280;">العودة للرئيسية</a>
+        <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
 @app.route('/teacher_dashboard', methods=['GET', 'POST'])
 def teacher_dashboard():
-    dev_data = load_device_data()
+    t_id = get_device_id()
+    dev_data = load_teacher_data(t_id)
     tests = dev_data["tests"]
     active_data = dev_data["active_test"]
     results = dev_data["results"]
@@ -363,7 +384,7 @@ def teacher_dashboard():
             
             if chosen_test not in results:
                 results[chosen_test] = {"participants": [], "scores": [], "status": "waiting"}
-            save_device_data(dev_data)
+            save_teacher_data(t_id, dev_data)
             msg = "تم اختيار الاختبار '" + chosen_test + "' وتفعيل قاعة الانتظار على هذا الجهاز بنجاح!"
             
         elif action == 'start_quiz':
@@ -371,7 +392,7 @@ def teacher_dashboard():
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'started'
-            save_device_data(dev_data)
+            save_teacher_data(t_id, dev_data)
             msg = "🚀 تم إعطاء إشارة الانطلاق وبدأ الاختبار للتلاميذ!"
             
         elif action == 'finish_quiz':
@@ -379,26 +400,15 @@ def teacher_dashboard():
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'finished'
-            save_device_data(dev_data)
+            save_teacher_data(t_id, dev_data)
             msg = "🏁 تم إنهاء الاختبار وعرض النتائج على هواتف الجميع!"
             
         elif action == 'add_test':
             t_name = request.form.get('test_name', '').strip()
             if t_name and t_name not in tests:
                 tests[t_name] = []
-                save_device_data(dev_data)
+                save_teacher_data(t_id, dev_data)
                 msg = "تم إضافة الاختبار '" + t_name + "' بنجاح!"
-        elif action == 'delete_test':
-            t_name = request.form.get('test_name')
-            if t_name in tests:
-                del tests[t_name]
-                if active_data.get('active') == t_name:
-                    active_data['active'] = ""
-                    active_data['status'] = 'waiting'
-                if t_name in results:
-                    del results[t_name]
-                save_device_data(dev_data)
-                msg = "تم حذف الاختبار بنجاح!"
 
     active_test = active_data.get('active', '')
     test_status = active_data.get('status', 'waiting')
@@ -417,8 +427,8 @@ def teacher_dashboard():
         
     teacher_qr_html = ""
     if active_test:
-        quiz_url = request.host_url.rstrip('/') + url_for('student_entry')
-        qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + quiz_url
+        quiz_url = request.host_url.rstrip('/') + url_for('student_entry', teacher=t_id)
+        qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + urllib.parse.quote(quiz_url)
         
         control_buttons = ""
         if test_status == 'waiting':
@@ -481,9 +491,7 @@ def teacher_dashboard():
                 <span><b>""" + name + """</b> (""" + str(len(tests[name])) + """ أسئلة)</span>
                 <div style="display: flex; gap: 5px;">
                     <a href="/teacher/edit_test/""" + urllib.parse.quote(name) + """" class="btn" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #2563eb;">⚙️ تعديل/أسئلة</a>
-                    <form method="POST" style="margin:0;" onsubmit="return confirm('هل أنت متأكد من حذف هذا الاختبار؟');">
-                        <input type="hidden" name="action" value="delete_test">
-                        <input type="hidden" name="test_name" value="""" + name + """">
+                    <form action="/teacher/delete_test/""" + urllib.parse.quote(name) + """" method="POST" style="margin:0;" onsubmit="return confirm('هل أنت متأكد من حذف هذا الاختبار؟');">
                         <button type="submit" style="padding: 6px 12px; font-size: 13px; margin: 0; background: #dc2626;">حذف</button>
                     </form>
                 </div>
@@ -516,15 +524,30 @@ def teacher_dashboard():
             <input type="text" name="test_name" placeholder="اسم الاختبار الجديد" required>
             <button type="submit" style="background: #059669;">إضافة الاختبار</button>
         </form>
-        
-        <br>
-        <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
-@app.route('/teacher/edit_test/<test_name>', methods=['GET', 'POST'])
+@app.route('/teacher/delete_test/<path:test_name>', methods=['POST'])
+def delete_test(test_name):
+    t_id = get_device_id()
+    dev_data = load_teacher_data(t_id)
+    tests = dev_data["tests"]
+    active_data = dev_data["active_test"]
+    results = dev_data["results"]
+    if test_name in tests:
+        del tests[test_name]
+        if active_data.get('active') == test_name:
+            active_data['active'] = ""
+            active_data['status'] = 'waiting'
+        if test_name in results:
+            del results[test_name]
+        save_teacher_data(t_id, dev_data)
+    return redirect(url_for('teacher_dashboard'))
+
+@app.route('/teacher/edit_test/<path:test_name>', methods=['GET', 'POST'])
 def edit_test(test_name):
-    dev_data = load_device_data()
+    t_id = get_device_id()
+    dev_data = load_teacher_data(t_id)
     tests = dev_data["tests"]
     if test_name not in tests:
         return redirect(url_for('teacher_dashboard'))
@@ -543,23 +566,8 @@ def edit_test(test_name):
                 "options": [opt0, opt1, opt2],
                 "answer": ans
             })
-            save_device_data(dev_data)
+            save_teacher_data(t_id, dev_data)
             msg = "تم إضافة السؤال بنجاح!"
-        elif action == 'delete_question':
-            try:
-                q_idx_val = request.form.get('q_idx')
-                if q_idx_val is not None and str(q_idx_val).isdigit():
-                    q_idx = int(q_idx_val)
-                    if 0 <= q_idx < len(tests[test_name]):
-                        tests[test_name].pop(q_idx)
-                        save_device_data(dev_data)
-                        msg = "تم حذف السؤال بنجاح!"
-                    else:
-                        msg = "رقم السؤال غير صحيح!"
-                else:
-                    msg = "خطأ في تحديد السؤال المراد حذفه!"
-            except Exception as e:
-                msg = f"خطأ في الحذف: {str(e)}"
 
     questions = tests[test_name]
     q_list_html = ""
@@ -571,9 +579,7 @@ def edit_test(test_name):
                     <p style="margin: 0 0 5px 0;"><b>السؤال """ + str(idx+1) + """:</b> """ + q['question'] + """</p>
                     <p style="margin: 0; font-size: 13px; color: #4b5563;">الإجابة الصحيحة: <b>""" + correct_opt + """</b></p>
                 </div>
-                <form method="POST" style="margin: 0;" onsubmit="return confirm('هل تريد حذف هذا السؤال؟');">
-                    <input type="hidden" name="action" value="delete_question">
-                    <input type="hidden" name="q_idx" value="""" + str(idx) + """">
+                <form action="/teacher/delete_question/""" + urllib.parse.quote(test_name) + """/""" + str(idx) + """" method="POST" style="margin: 0;" onsubmit="return confirm('هل تريد حذف هذا السؤال؟');">
                     <button type="submit" style="padding: 6px 10px; font-size: 13px; margin: 0; background: #dc2626;">حذف</button>
                 </form>
             </div>
@@ -607,6 +613,17 @@ def edit_test(test_name):
         <a href="/teacher_dashboard" class="btn" style="background: #6b7280;">الرجوع لوحة التحكم</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
+
+@app.route('/teacher/delete_question/<path:test_name>/<int:q_idx>', methods=['POST'])
+def delete_question(test_name, q_idx):
+    t_id = get_device_id()
+    dev_data = load_teacher_data(t_id)
+    tests = dev_data["tests"]
+    if test_name in tests:
+        if 0 <= q_idx < len(tests[test_name]):
+            tests[test_name].pop(q_idx)
+            save_teacher_data(t_id, dev_data)
+    return redirect(url_for('edit_test', test_name=test_name))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
