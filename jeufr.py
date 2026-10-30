@@ -1,43 +1,32 @@
 import os
 import json
 import time
+import uuid
 import urllib.parse
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
-app.secret_key = "super_secret_quiz_key_2026"
+app.secret_key = "super_secret_quiz_key_device_isolated_2026"
 
-TESTS_FILE = "tests.json"
-ACTIVE_TEST_FILE = "active_test.json"
-RESULTS_FILE = "results.json"
 TEACHER_CODE = "1234"
 
-def load_json(filename, default_val):
-    if os.path.exists(filename):
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return default_val
-    return default_val
+# تخزين البيانات في الذاكرة لتكون منعزلة لكل جلسة جهاز/متصفح على حدة
+# بحيث لا تتشارك الأجهزة المختلفة في نفس الاختبارات أو النتائج
+SESSIONS_DATA = {}
 
-def save_json(filename, data):
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-def load_tests():
-    return load_json(TESTS_FILE, {
-        "اختبار عام 1": [
-            {"question": "ما عاصمة تونس؟", "options": ["سوسة", "تونس العاصمة", "صفاقس"], "answer": 1},
-            {"question": "كم عدد ركعات صلاة الصبح؟", "options": ["2", "3", "4"], "answer": 0}
-        ]
-    })
-
-def load_active_test():
-    return load_json(ACTIVE_TEST_FILE, {"active": "", "status": "waiting"})
-
-def load_results():
-    return load_json(RESULTS_FILE, {})
+def get_device_data():
+    """الحصول على بيانات خاصة بالجهاز/المتصفح الحالي فقط"""
+    if 'device_id' not in session:
+        session['device_id'] = str(uuid.uuid4())
+    
+    d_id = session['device_id']
+    if d_id not in SESSIONS_DATA:
+        SESSIONS_DATA[d_id] = {
+            "tests": {},
+            "active_test": {"active": "", "status": "waiting"},
+            "results": {}
+        }
+    return SESSIONS_DATA[d_id]
 
 HTML_TEMPLATE = """
 <!doctype html>
@@ -102,13 +91,18 @@ def index():
 
 @app.route('/student_entry', methods=['GET', 'POST'])
 def student_entry():
-    active_data = load_active_test()
+    if request.method == 'GET':
+        session.pop('student_name', None)
+        session.pop('start_time', None)
+
+    dev_data = get_device_data()
+    active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     
     if not test_name:
         content = """
             <h2>تنبيه</h2>
-            <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار حتى الآن. الرجاء الانتظار قليلاً...</p>
+            <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار على هذا الجهاز حتى الآن. الرجاء الانتظار قليلاً...</p>
             <script>
                 setTimeout(function() {
                     var activeEl = document.activeElement;
@@ -127,7 +121,7 @@ def student_entry():
         name = request.form.get('student_name', '').strip()
         if name:
             session['student_name'] = name
-            results = load_results()
+            results = dev_data["results"]
             
             if test_name not in results:
                 results[test_name] = {"participants": [], "scores": [], "status": active_data.get('status', 'waiting')}
@@ -135,7 +129,6 @@ def student_entry():
             existing_names = [p['name'] for p in results[test_name].get("participants", [])]
             if name not in existing_names:
                 results[test_name]["participants"].append({"name": name, "joined_at": time.time()})
-                save_json(RESULTS_FILE, results)
             
             return redirect(url_for('waiting_room'))
     
@@ -157,7 +150,8 @@ def waiting_room():
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
     
-    active_data = load_active_test()
+    dev_data = get_device_data()
+    active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     status = active_data.get('status', 'waiting')
     
@@ -187,16 +181,17 @@ def quiz(test_name):
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
     
-    active_data = load_active_test()
+    dev_data = get_device_data()
+    active_data = dev_data["active_test"]
     if active_data.get('status') == 'finished':
         return redirect(url_for('show_final_results', test_name=test_name))
 
-    tests = load_tests()
+    tests = dev_data["tests"]
     if test_name not in tests:
         return redirect(url_for('student_entry'))
     
     questions = tests[test_name]
-    results = load_results()
+    results = dev_data["results"]
     
     if test_name not in results:
         results[test_name] = {"participants": [], "scores": [], "status": "started"}
@@ -226,10 +221,8 @@ def quiz(test_name):
         total_finished = len(results[test_name].get("scores", []))
         if total_participants > 0 and total_finished >= total_participants:
             active_data['status'] = 'finished'
-            save_json(ACTIVE_TEST_FILE, active_data)
             results[test_name]['status'] = 'finished'
             
-        save_json(RESULTS_FILE, results)
         return redirect(url_for('student_waiting_results', test_name=test_name))
     
     session['start_time'] = time.time()
@@ -274,7 +267,8 @@ def student_waiting_results(test_name):
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
         
-    active_data = load_active_test()
+    dev_data = get_device_data()
+    active_data = dev_data["active_test"]
     status = active_data.get('status', 'waiting')
     
     if status != 'finished':
@@ -298,9 +292,10 @@ def student_waiting_results(test_name):
 
 @app.route('/results/<test_name>')
 def show_final_results(test_name):
-    tests = load_tests()
+    dev_data = get_device_data()
+    tests = dev_data["tests"]
     questions = tests.get(test_name, [])
-    results = load_results()
+    results = dev_data["results"]
     test_res = results.get(test_name, {"scores": []})
     sorted_scores = sorted(test_res.get("scores", []), key=lambda x: (-x['score'], x['time']))
     
@@ -358,58 +353,49 @@ def teacher_login():
 
 @app.route('/teacher_dashboard', methods=['GET', 'POST'])
 def teacher_dashboard():
-    tests = load_tests()
-    active_data = load_active_test()
-    results = load_results()
+    dev_data = get_device_data()
+    tests = dev_data["tests"]
+    active_data = dev_data["active_test"]
+    results = dev_data["results"]
     msg = ""
+    
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'set_active':
             chosen_test = request.form.get('active_test')
             active_data['active'] = chosen_test
             active_data['status'] = 'waiting'
-            save_json(ACTIVE_TEST_FILE, active_data)
             
             if chosen_test not in results:
                 results[chosen_test] = {"participants": [], "scores": [], "status": "waiting"}
-            save_json(RESULTS_FILE, results)
-            msg = "تم اختيار الاختبار '" + chosen_test + "' وتفعيل قاعة الانتظار بنجاح!"
+            msg = "تم اختيار الاختبار '" + chosen_test + "' وتفعيل قاعة الانتظار على هذا الجهاز بنجاح!"
             
         elif action == 'start_quiz':
             active_data['status'] = 'started'
-            save_json(ACTIVE_TEST_FILE, active_data)
-            
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'started'
-                save_json(RESULTS_FILE, results)
             msg = "🚀 تم إعطاء إشارة الانطلاق وبدأ الاختبار للتلاميذ!"
             
         elif action == 'finish_quiz':
             active_data['status'] = 'finished'
-            save_json(ACTIVE_TEST_FILE, active_data)
-            
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'finished'
-                save_json(RESULTS_FILE, results)
             msg = "🏁 تم إنهاء الاختبار وعرض النتائج على هواتف الجميع!"
             
         elif action == 'add_test':
             t_name = request.form.get('test_name', '').strip()
             if t_name and t_name not in tests:
                 tests[t_name] = []
-                save_json(TESTS_FILE, tests)
                 msg = "تم إضافة الاختبار '" + t_name + "' بنجاح!"
         elif action == 'delete_test':
             t_name = request.form.get('test_name')
             if t_name in tests:
                 del tests[t_name]
-                save_json(TESTS_FILE, tests)
                 if active_data.get('active') == t_name:
                     active_data['active'] = ""
                     active_data['status'] = 'waiting'
-                    save_json(ACTIVE_TEST_FILE, active_data)
                 msg = "تم حذف الاختبار '" + t_name + "' بنجاح!"
 
     active_test = active_data.get('active', '')
@@ -429,7 +415,7 @@ def teacher_dashboard():
         
     teacher_qr_html = ""
     if active_test:
-        quiz_url = "https://quiz-app-7wny.onrender.com/student_entry"
+        quiz_url = request.host_url.rstrip('/') + url_for('student_entry')
         qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + quiz_url
         
         control_buttons = ""
@@ -456,7 +442,7 @@ def teacher_dashboard():
 
         teacher_qr_html = """
             <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود الدخول للتلاميذ (الاختبار النشط: """ + active_test + """ ):</p>
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود الدخول للتلاميذ (خاص بهذه اللعبة على جهازك):</p>
                 <img src=""" + qr_url + """ alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
                 <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">امسح الكود لتسجيل الدخول والانتظار</p>
                 
@@ -503,7 +489,7 @@ def teacher_dashboard():
         """
     
     content = """
-        <h2>لوحة تحكم الأستاذ</h2>
+        <h2>لوحة تحكم الأستاذ (خاصة بجهازك فقط)</h2>
         <p style="color: green; font-weight: bold;">""" + msg + """</p>
         
         <hr style="margin: 20px 0;">
@@ -518,8 +504,8 @@ def teacher_dashboard():
         """ + teacher_qr_html + """
         
         <hr style="margin: 20px 0;">
-        <h3>📚 إدارة الاختبارات الحالية</h3>
-        """ + (tests_management_html if tests_management_html else "<p>لا توجد اختبارات حالياً.</p>") + """
+        <h3>📚 إدارة الاختبارات الخاصة بك</h3>
+        """ + (tests_management_html if tests_management_html else "<p>لا توجد اختبارات مضافة بعد على هذا الجهاز.</p>") + """
         
         <hr style="margin: 20px 0;">
         <h3>إضافة اختبار جديد</h3>
@@ -536,7 +522,8 @@ def teacher_dashboard():
 
 @app.route('/teacher/edit_test/<test_name>', methods=['GET', 'POST'])
 def edit_test(test_name):
-    tests = load_tests()
+    dev_data = get_device_data()
+    tests = dev_data["tests"]
     if test_name not in tests:
         return redirect(url_for('teacher_dashboard'))
     
@@ -554,13 +541,11 @@ def edit_test(test_name):
                 "options": [opt0, opt1, opt2],
                 "answer": ans
             })
-            save_json(TESTS_FILE, tests)
             msg = "تم إضافة السؤال بنجاح!"
         elif action == 'delete_question':
             q_idx = int(request.form.get('q_idx'))
             if 0 <= q_idx < len(tests[test_name]):
                 tests[test_name].pop(q_idx)
-                save_json(TESTS_FILE, tests)
                 msg = "تم حذف السؤال بنجاح!"
 
     questions = tests[test_name]
@@ -612,6 +597,10 @@ def edit_test(test_name):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+    
+    
+
+
 
 
 
