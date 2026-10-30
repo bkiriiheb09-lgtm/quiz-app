@@ -1,3 +1,5 @@
+
+You sent
 import os
 import json
 from flask import Flask, render_template_string, request, redirect, url_for
@@ -5,7 +7,7 @@ from flask import Flask, render_template_string, request, redirect, url_for
 app = Flask(__name__)
 
 TESTS_FILE = "tests.json"
-TEACHER_CODE = "1234"  # كود الدخول لوضع الأستاذ
+TEACHER_CODE = "1234"
 
 def load_tests():
     if os.path.exists(TESTS_FILE):
@@ -25,7 +27,6 @@ def save_tests(tests):
     with open(TESTS_FILE, "w", encoding="utf-8") as f:
         json.dump(tests, f, ensure_ascii=False, indent=4)
 
-# قالب الصفحة الرئيسية (اختيار الوضع أو الاختبارات)
 HTML_TEMPLATE = """
 <!doctype html>
 <html lang="ar" dir="rtl">
@@ -34,15 +35,15 @@ HTML_TEMPLATE = """
     <title>منصة الاختبارات التعليمية</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
-            background-color: #1e3a8a; /* خلفية زرقاء */
-            color: #000000;            /* كتابة بالأسود */
+            background-color: #1e3a8a;
+            color: #000000;
             margin: 0;
             padding: 20px;
             text-align: center;
-        }}
-        .card {{
+        }
+        .card {
             background: #ffffff;
             width: 95%;
             max-width: 500px;
@@ -52,11 +53,11 @@ HTML_TEMPLATE = """
             box-shadow: 0 8px 16px rgba(0,0,0,0.3);
             box-sizing: border-box;
             text-align: right;
-        }}
-        h2, h3, p {{
+        }
+        h2, h3, p {
             color: #000000;
-        }}
-        button, input[type="submit"], a.btn {{
+        }
+        button, input[type="submit"], a.btn {
             background: #3b82f6;
             color: white;
             border: none;
@@ -70,11 +71,11 @@ HTML_TEMPLATE = """
             width: 100%;
             box-sizing: border-box;
             text-align: center;
-        }}
-        button:hover, a.btn:hover {{
+        }
+        button:hover, a.btn:hover {
             background: #2563eb;
-        }}
-        input[type="text"], input[type="password"], select {{
+        }
+        input[type="text"], input[type="password"], select {
             width: 100%;
             padding: 10px;
             margin: 10px 0;
@@ -82,17 +83,16 @@ HTML_TEMPLATE = """
             border-radius: 6px;
             box-sizing: border-box;
             font-size: 16px;
-        }}
-        label {{
+        }
+        label {
             display: block;
             margin: 10px 0;
             font-size: 16px;
             cursor: pointer;
-        }}
+        }
     </style>
     <script>
-        // أصوات التفاعل عبر Web Audio API
-        function playClickSound() {{
+        function playClickSound() {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -103,11 +103,11 @@ HTML_TEMPLATE = """
             gain.connect(ctx.destination);
             osc.start();
             osc.stop(ctx.currentTime + 0.08);
-        }}
+        }
 
-        function playSuccessSound() {{
+        function playSuccessSound() {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {{
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
                 let osc = ctx.createOscillator();
                 let gain = ctx.createGain();
                 osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
@@ -116,12 +116,12 @@ HTML_TEMPLATE = """
                 gain.connect(ctx.destination);
                 osc.start(ctx.currentTime + i * 0.1);
                 osc.stop(ctx.currentTime + i * 0.1 + 0.15);
-            }});
-        }}
+            });
+        }
 
-        function playFailSound() {{
+        function playFailSound() {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            [300, 200].forEach((freq, i) => {{
+            [300, 200].forEach((freq, i) => {
                 let osc = ctx.createOscillator();
                 let gain = ctx.createGain();
                 osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.2);
@@ -130,14 +130,14 @@ HTML_TEMPLATE = """
                 gain.connect(ctx.destination);
                 osc.start(ctx.currentTime + i * 0.2);
                 osc.stop(ctx.currentTime + i * 0.2 + 0.2);
-            }});
-        }}
+            });
+        }
         
-        document.addEventListener("DOMContentLoaded", () => {{
-            document.querySelectorAll("button, input, label").forEach(el => {{
+        document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll("button, input, label").forEach(el => {
                 el.addEventListener("click", playClickSound);
-            }});
-        }});
+            });
+        });
     </script>
 </head>
 <body>
@@ -313,12 +313,11 @@ def teacher_dashboard():
             <button type="submit" style="background: #047857;">إضافة السؤال</button>
         </form>
         
-        <br>
+        br
         <a href="/" class="btn" style="background: #6b7280;">تسجيل الخروج / الرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-      
-  
+        
