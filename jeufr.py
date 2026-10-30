@@ -8,8 +8,6 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 app = Flask(__name__)
 app.secret_key = "super_secret_quiz_key_device_isolated_2026"
 
-TEACHER_CODE = "1234"
-
 def get_device_id():
     """الحصول على معرف فريد ومستقل لكل جهاز/متصفح"""
     if 'device_id' not in session:
@@ -104,7 +102,7 @@ def index():
         <h2 style="text-align: center;">منصة الاختبارات الذكية</h2>
         <p style="text-align: center;">اختر وضع الاستخدام:</p>
         <a href="/student_entry" class="btn">👨‍🎓 وضع التلميذ (Mode Élève)</a>
-        <a href="/teacher_login" class="btn" style="background: #047857;">👨‍🏫 وضع الأستاذ (Mode Enseignant)</a>
+        <a href="/teacher_dashboard" class="btn" style="background: #047857;">👨‍🏫 وضع الأستاذ (Mode Enseignant)</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
@@ -288,8 +286,8 @@ def student_waiting_results(test_name):
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
         
-    dev_data = load_device_data()
-    active_data = dev_data["active_test"]
+    active_data = load_device_data()
+    active_data = load_device_data()["active_test"]
     status = active_data.get('status', 'waiting')
     
     if status != 'finished':
@@ -349,29 +347,6 @@ def show_final_results(test_name):
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
-@app.route('/teacher_login', methods=['GET', 'POST'])
-def teacher_login():
-    error = ""
-    if request.method == 'POST':
-        code = request.form.get('code')
-        if code == TEACHER_CODE:
-            return redirect(url_for('teacher_dashboard'))
-        else:
-            error = "❌ الكود السري غير صحيح!"
-            
-    content = """
-        <h2>تسجيل دخول الأستاذ</h2>
-        <p>الرجاء إدخال الكود السري:</p>
-        <form method="POST">
-            <input type="password" name="code" placeholder="أدخل الكود (مثال: 1234)" required>
-            <button type="submit">دخول</button>
-        </form>
-        <p style="color: red;">""" + error + """</p>
-        <br>
-        <a href="/" class="btn" style="background: #6b7280;">الرجوع</a>
-    """
-    return render_template_string(HTML_TEMPLATE, content=content)
-
 @app.route('/teacher_dashboard', methods=['GET', 'POST'])
 def teacher_dashboard():
     dev_data = load_device_data()
@@ -379,7 +354,6 @@ def teacher_dashboard():
     active_data = dev_data["active_test"]
     results = dev_data["results"]
     msg = ""
-    
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'set_active':
@@ -421,8 +395,10 @@ def teacher_dashboard():
                 if active_data.get('active') == t_name:
                     active_data['active'] = ""
                     active_data['status'] = 'waiting'
+                if t_name in results:
+                    del results[t_name]
                 save_device_data(dev_data)
-                msg = "تم حذف الاختبار '" + t_name + "' بنجاح!"
+                msg = "تم حذف الاختبار بنجاح!"
 
     active_test = active_data.get('active', '')
     test_status = active_data.get('status', 'waiting')
@@ -542,7 +518,7 @@ def teacher_dashboard():
         </form>
         
         <br>
-        <a href="/" class="btn" style="background: #6b7280;">تسجيل الخروج / الرئيسية</a>
+        <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
@@ -576,8 +552,10 @@ def edit_test(test_name):
                     tests[test_name].pop(q_idx)
                     save_device_data(dev_data)
                     msg = "تم حذف السؤال بنجاح!"
-            except:
-                msg = "حدث خطأ أثناء الحذف!"
+                else:
+                    msg = "رقم السؤال غير صحيح!"
+            except Exception as e:
+                msg = f"خطأ في الحذف: {str(e)}"
 
     questions = tests[test_name]
     q_list_html = ""
