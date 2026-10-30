@@ -10,23 +10,42 @@ app.secret_key = "super_secret_quiz_key_device_isolated_2026"
 
 TEACHER_CODE = "1234"
 
-# تخزين البيانات في الذاكرة لتكون منعزلة لكل جلسة جهاز/متصفح على حدة
-# بحيث لا تتشارك الأجهزة المختلفة في نفس الاختبارات أو النتائج
-SESSIONS_DATA = {}
-
-def get_device_data():
-    """الحصول على بيانات خاصة بالجهاز/المتصفح الحالي فقط"""
+def get_device_id():
+    """الحصول على معرف فريد ومستقل لكل جهاز/متصفح"""
     if 'device_id' not in session:
         session['device_id'] = str(uuid.uuid4())
-    
-    d_id = session['device_id']
-    if d_id not in SESSIONS_DATA:
-        SESSIONS_DATA[d_id] = {
-            "tests": {},
-            "active_test": {"active": "", "status": "waiting"},
-            "results": {}
-        }
-    return SESSIONS_DATA[d_id]
+    return session['device_id']
+
+def get_device_file():
+    """تحديد اسم ملف البيانات الخاص بهذا الجهاز فقط"""
+    d_id = get_device_id()
+    safe_id = "".join(c for c in d_id if c.isalnum() or c in ('_', '-'))
+    return f"device_{safe_id}.json"
+
+def load_device_data():
+    """تحميل بيانات الجهاز الحالي من ملفه الخاص"""
+    filename = get_device_file()
+    default_data = {
+        "tests": {},
+        "active_test": {"active": "", "status": "waiting"},
+        "results": {}
+    }
+    if os.path.exists(filename):
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return default_data
+    return default_data
+
+def save_device_data(data):
+    """حفظ بيانات الجهاز الحالي في ملفه الخاص"""
+    filename = get_device_file()
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print("Error saving device data:", e)
 
 HTML_TEMPLATE = """
 <!doctype html>
@@ -95,7 +114,7 @@ def student_entry():
         session.pop('student_name', None)
         session.pop('start_time', None)
 
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     
@@ -129,6 +148,7 @@ def student_entry():
             existing_names = [p['name'] for p in results[test_name].get("participants", [])]
             if name not in existing_names:
                 results[test_name]["participants"].append({"name": name, "joined_at": time.time()})
+                save_device_data(dev_data)
             
             return redirect(url_for('waiting_room'))
     
@@ -150,7 +170,7 @@ def waiting_room():
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
     
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     status = active_data.get('status', 'waiting')
@@ -181,7 +201,7 @@ def quiz(test_name):
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
     
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     active_data = dev_data["active_test"]
     if active_data.get('status') == 'finished':
         return redirect(url_for('show_final_results', test_name=test_name))
@@ -223,6 +243,7 @@ def quiz(test_name):
             active_data['status'] = 'finished'
             results[test_name]['status'] = 'finished'
             
+        save_device_data(dev_data)
         return redirect(url_for('student_waiting_results', test_name=test_name))
     
     session['start_time'] = time.time()
@@ -267,7 +288,7 @@ def student_waiting_results(test_name):
     if 'student_name' not in session:
         return redirect(url_for('student_entry'))
         
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     active_data = dev_data["active_test"]
     status = active_data.get('status', 'waiting')
     
@@ -292,7 +313,7 @@ def student_waiting_results(test_name):
 
 @app.route('/results/<test_name>')
 def show_final_results(test_name):
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     tests = dev_data["tests"]
     questions = tests.get(test_name, [])
     results = dev_data["results"]
@@ -353,7 +374,7 @@ def teacher_login():
 
 @app.route('/teacher_dashboard', methods=['GET', 'POST'])
 def teacher_dashboard():
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     tests = dev_data["tests"]
     active_data = dev_data["active_test"]
     results = dev_data["results"]
@@ -368,6 +389,7 @@ def teacher_dashboard():
             
             if chosen_test not in results:
                 results[chosen_test] = {"participants": [], "scores": [], "status": "waiting"}
+            save_device_data(dev_data)
             msg = "تم اختيار الاختبار '" + chosen_test + "' وتفعيل قاعة الانتظار على هذا الجهاز بنجاح!"
             
         elif action == 'start_quiz':
@@ -375,6 +397,7 @@ def teacher_dashboard():
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'started'
+            save_device_data(dev_data)
             msg = "🚀 تم إعطاء إشارة الانطلاق وبدأ الاختبار للتلاميذ!"
             
         elif action == 'finish_quiz':
@@ -382,12 +405,14 @@ def teacher_dashboard():
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'finished'
+            save_device_data(dev_data)
             msg = "🏁 تم إنهاء الاختبار وعرض النتائج على هواتف الجميع!"
             
         elif action == 'add_test':
             t_name = request.form.get('test_name', '').strip()
             if t_name and t_name not in tests:
                 tests[t_name] = []
+                save_device_data(dev_data)
                 msg = "تم إضافة الاختبار '" + t_name + "' بنجاح!"
         elif action == 'delete_test':
             t_name = request.form.get('test_name')
@@ -396,6 +421,7 @@ def teacher_dashboard():
                 if active_data.get('active') == t_name:
                     active_data['active'] = ""
                     active_data['status'] = 'waiting'
+                save_device_data(dev_data)
                 msg = "تم حذف الاختبار '" + t_name + "' بنجاح!"
 
     active_test = active_data.get('active', '')
@@ -522,7 +548,7 @@ def teacher_dashboard():
 
 @app.route('/teacher/edit_test/<test_name>', methods=['GET', 'POST'])
 def edit_test(test_name):
-    dev_data = get_device_data()
+    dev_data = load_device_data()
     tests = dev_data["tests"]
     if test_name not in tests:
         return redirect(url_for('teacher_dashboard'))
@@ -541,12 +567,17 @@ def edit_test(test_name):
                 "options": [opt0, opt1, opt2],
                 "answer": ans
             })
+            save_device_data(dev_data)
             msg = "تم إضافة السؤال بنجاح!"
         elif action == 'delete_question':
-            q_idx = int(request.form.get('q_idx'))
-            if 0 <= q_idx < len(tests[test_name]):
-                tests[test_name].pop(q_idx)
-                msg = "تم حذف السؤال بنجاح!"
+            try:
+                q_idx = int(request.form.get('q_idx'))
+                if 0 <= q_idx < len(tests[test_name]):
+                    tests[test_name].pop(q_idx)
+                    save_device_data(dev_data)
+                    msg = "تم حذف السؤال بنجاح!"
+            except:
+                msg = "حدث خطأ أثناء الحذف!"
 
     questions = tests[test_name]
     q_list_html = ""
