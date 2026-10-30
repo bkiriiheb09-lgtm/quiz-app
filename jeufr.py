@@ -1,5 +1,3 @@
-
-You sent
 import os
 import json
 from flask import Flask, render_template_string, request, redirect, url_for
@@ -313,11 +311,13 @@ def teacher_dashboard():
             <button type="submit" style="background: #047857;">إضافة السؤال</button>
         </form>
         
-        br
+        <br>
         <a href="/" class="btn" style="background: #6b7280;">تسجيل الخروج / الرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
         
+     
