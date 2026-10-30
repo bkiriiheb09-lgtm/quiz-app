@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import urllib.parse
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
@@ -43,7 +44,7 @@ HTML_TEMPLATE = """
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="utf-8">
-    <title>منصة الاختبارات الذكية</title>
+    <title>منصة الاختبارات التعليمية</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {
@@ -57,7 +58,7 @@ HTML_TEMPLATE = """
         .card {
             background: #ffffff;
             width: 95%;
-            max-width: 550px;
+            max-width: 600px;
             margin: 30px auto;
             padding: 25px;
             border-radius: 12px;
@@ -112,18 +113,6 @@ HTML_TEMPLATE = """
             text-align: center;
             border: 1px solid #fecaca;
         }
-        .qr-section {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 2px dashed #e5e7eb;
-            text-align: center;
-        }
-        .qr-section img {
-            width: 140px;
-            height: 140px;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
         table.ranking {
             width: 100%;
             border-collapse: collapse;
@@ -138,6 +127,16 @@ HTML_TEMPLATE = """
         table.ranking th {
             background-color: #f3f4f6;
             color: #111827;
+        }
+        .admin-test-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
         }
     </style>
     <script>
@@ -199,19 +198,11 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def index():
-    app_url = "https://quiz-app-7wny.onrender.com"
-    qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={app_url}"
-    
-    content = f"""
+    content = """
         <h2 style="text-align: center;">منصة الاختبارات الذكية</h2>
         <p style="text-align: center;">اختر وضع الاستخدام:</p>
         <a href="/student_entry" class="btn">👨‍🎓 وضع التلميذ (Mode Élève)</a>
         <a href="/teacher_login" class="btn" style="background: #047857;">👨‍🏫 وضع الأستاذ (Mode Enseignant)</a>
-        
-        <div class="qr-section">
-            <p style="font-size: 14px; font-weight: bold; margin: 0;">📱 امسح الـ QR كود بهاتفك للدخول الفوري:</p>
-            <img src="{qr_code_url}" alt="QR Code للمنصة">
-        </div>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
@@ -280,12 +271,10 @@ def quiz(test_name):
         start_time = session.get('start_time', time.time())
         time_taken = round(time.time() - start_time, 1)
         
-        # حفظ النتيجة
         results = load_results()
         if test_name not in results:
             results[test_name] = []
         
-        # تحديث أو إضافة نتيجة التلميذ
         student_name = session['student_name']
         results[test_name] = [r for r in results[test_name] if r['name'] != student_name]
         results[test_name].append({
@@ -296,7 +285,6 @@ def quiz(test_name):
         })
         save_json(RESULTS_FILE, results)
         
-        # ترتيب النتائج: حسب النقاط تنازلياً، ثم حسب الوقت تصاعدياً
         sorted_results = sorted(results[test_name], key=lambda x: (-x['score'], x['time']))
         
         ranking_html = ""
@@ -340,7 +328,6 @@ def quiz(test_name):
         """
         return render_template_string(HTML_TEMPLATE, content=content)
     
-    # تسجيل وقت بداية الاختبار للتلميذ
     session['start_time'] = time.time()
     
     q_html = ""
@@ -423,24 +410,46 @@ def teacher_dashboard():
                 tests[t_name] = []
                 save_json(TESTS_FILE, tests)
                 msg = f"تم إضافة الاختبار '{t_name}' بنجاح!"
-        elif action == 'add_question':
+        elif action == 'delete_test':
             t_name = request.form.get('test_name')
-            q_text = request.form.get('question')
-            opt0 = request.form.get('opt0')
-            opt1 = request.form.get('opt1')
-            opt2 = request.form.get('opt2')
-            ans = int(request.form.get('answer'))
             if t_name in tests:
-                tests[t_name].append({
-                    "question": q_text,
-                    "options": [opt0, opt1, opt2],
-                    "answer": ans
-                })
+                del tests[t_name]
                 save_json(TESTS_FILE, tests)
-                msg = "تم إضافة السؤال بنجاح!"
+                if active_data.get('active') == t_name:
+                    active_data['active'] = ""
+                    save_json(ACTIVE_TEST_FILE, active_data)
+                msg = f"تم حذف الاختبار '{t_name}' بنجاح!"
+
+    active_test = active_data.get('active', '')
+    teacher_qr_html = ""
+    if active_test:
+        quiz_url = f"https://quiz-app-7wny.onrender.com/quiz/{urllib.parse.quote(active_test)}"
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=160x160&data={quiz_url}"
+        teacher_qr_html = f"""
+            <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود خاص بالاختبار النشط الحالي ({active_test}):</p>
+                <img src="{qr_url}" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
+                <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">اعرض هذا الكود لتلامذتك لمسحه والدخول المباشر</p>
+            </div>
+        """
                 
-    test_options = "".join([f'<option value="{name}">' for name in tests.keys()])
-    test_select_options = "".join([f'<option value="{name}" {"selected" if name == active_data.get("active") else ""}>{name}</option>' for name in tests.keys()])
+    test_select_options = "".join([f'<option value="{name}" {"selected" if name == active_test else ""}>{name}</option>' for name in tests.keys()])
+    
+    tests_management_html = ""
+    for name in tests.keys():
+        tests_management_html += f"""
+            <div class="admin-test-row">
+                <span><b>{name}</b> ({len(tests[name])} أسئلة)</span>
+                <div style="display: flex; gap: 5px;">
+                    <a href="/teacher/edit_test/{urllib.parse.quote(name)}" class="btn" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #2563eb;">⚙️ تعديل/أسئلة</a>
+                    <form method="POST" style="margin:0;" onsubmit="return confirm('هل أنت متأكد من حذف هذا الاختبار؟');">
+                        <input type="hidden" name="action" value="delete_test">
+                        <input type="hidden" name="test_name" value="{name}">
+                        <button type="submit" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #dc2626;">🗑️ حذف</button>
+                    </form>
+                </div>
+            </div>
+        """
     
     content = f"""
         <h2>لوحة تحكم الأستاذ</h2>
@@ -455,20 +464,83 @@ def teacher_dashboard():
             <button type="submit" style="background: #2563eb;">تفعيل هذا الاختبار</button>
         </form>
         
+        {teacher_qr_html}
+        
+        <hr style="margin: 20px 0;">
+        <h3>📚 إدارة الاختبارات الحالية</h3>
+        {tests_management_html if tests_management_html else "<p>لا توجد اختبارات حالياً.</p>"}
+        
         <hr style="margin: 20px 0;">
         <h3>إضافة اختبار جديد</h3>
         <form method="POST">
             <input type="hidden" name="action" value="add_test">
             <input type="text" name="test_name" placeholder="اسم الاختبار الجديد" required>
-            <button type="submit">إضافة الاختبار</button>
+            <button type="submit" style="background: #059669;">إضافة الاختبار</button>
         </form>
         
+        <br>
+        <a href="/" class="btn" style="background: #6b7280;">تسجيل الخروج / الرئيسية</a>
+    """
+    return render_template_string(HTML_TEMPLATE, content=content)
+
+@app.route('/teacher/edit_test/<test_name>', methods=['GET', 'POST'])
+def edit_test(test_name):
+    tests = load_tests()
+    if test_name not in tests:
+        return redirect(url_for('teacher_dashboard'))
+    
+    msg = ""
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_question':
+            q_text = request.form.get('question')
+            opt0 = request.form.get('opt0')
+            opt1 = request.form.get('opt1')
+            opt2 = request.form.get('opt2')
+            ans = int(request.form.get('answer'))
+            tests[test_name].append({
+                "question": q_text,
+                "options": [opt0, opt1, opt2],
+                "answer": ans
+            })
+            save_json(TESTS_FILE, tests)
+            msg = "تم إضافة السؤال بنجاح!"
+        elif action == 'delete_question':
+            q_idx = int(request.form.get('q_idx'))
+            if 0 <= q_idx < len(tests[test_name]):
+                tests[test_name].pop(q_idx)
+                save_json(TESTS_FILE, tests)
+                msg = "تم حذف السؤال بنجاح!"
+
+    questions = tests[test_name]
+    q_list_html = ""
+    for idx, q in enumerate(questions):
+        correct_opt = q['options'][q['answer']]
+        q_list_html += f"""
+            <div class="admin-test-row">
+                <div style="text-align: right; flex-grow: 1;">
+                    <p style="margin: 0 0 5px 0;"><b>السؤال {idx+1}:</b> {q['question']}</p>
+                    <p style="margin: 0; font-size: 13px; color: #4b5563;">الإجابة الصحيحة: <b>{correct_opt}</b></p>
+                </div>
+                <form method="POST" style="margin: 0;" onsubmit="return confirm('هل تريد حذف هذا السؤال؟');">
+                    <input type="hidden" name="action" value="delete_question">
+                    <input type="hidden" name="q_idx" value="{idx}">
+                    <button type="submit" style="padding: 6px 10px; font-size: 13px; margin: 0; background: #dc2626;">حذف</button>
+                </form>
+            </div>
+        """
+
+    content = f"""
+        <h2>إدارة اختبار: {test_name}</h2>
+        <p style="color: green; font-weight: bold;">{msg}</p>
+        
+        <h3 style="margin-top: 15px;">أسئلة الاختبار الحالية:</h3>
+        {q_list_html if q_list_html else "<p>لا توجد أسئلة في هذا الاختبار بعد.</p>"}
+        
         <hr style="margin: 20px 0;">
-        <h3>إضافة سؤال لاختبار</h3>
+        <h3>➕ إضافة سؤال جديد لهذا الاختبار</h3>
         <form method="POST">
             <input type="hidden" name="action" value="add_question">
-            <label>اختر الاختبار:</label>
-            <select name="test_name">{test_select_options}</select>
             <input type="text" name="question" placeholder="نص السؤال" required>
             <input type="text" name="opt0" placeholder="الخيار الأول" required>
             <input type="text" name="opt1" placeholder="الخيار الثاني" required>
@@ -479,16 +551,18 @@ def teacher_dashboard():
                 <option value="1">الخيار الثاني</option>
                 <option value="2">الخيار الثالث</option>
             </select>
-            <button type="submit" style="background: #047857;">إضافة السؤال</button>
+            <button type="submit" style="background: #059669;">إضافة السؤال</button>
         </form>
         
         <br>
-        <a href="/" class="btn" style="background: #6b7280;">تسجيل الخروج / الرئيسية</a>
+        <a href="/teacher_dashboard" class="btn" style="background: #6b7280;">الرجوع لوحة التحكم</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
 
 
 
