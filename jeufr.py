@@ -140,7 +140,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="card">
-        {{content}}
+        {{ content | safe }}
     </div>
 </body>
 </html>
