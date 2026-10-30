@@ -109,7 +109,15 @@ def student_entry():
         content = """
             <h2>تنبيه</h2>
             <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار حتى الآن. الرجاء الانتظار قليلاً...</p>
-            <script>setTimeout(function() { window.location.reload(); }, 3000);</script>
+            <script>
+                setTimeout(function() {
+                    var activeEl = document.activeElement;
+                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                        return;
+                    }
+                    window.location.reload();
+                }, 3000);
+            </script>
             <br>
             <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
         """
@@ -160,7 +168,15 @@ def waiting_room():
         <h2>قاعة الانتظار</h2>
         <p>مرحباً <b>""" + session.get('student_name', '') + """</b></p>
         <p>⏳ في انتظار إعارة إشارة الانطلاق من الأستاذ للاختبار (<b>""" + str(test_name) + """</b>)...</p>
-        <script>setTimeout(function() { window.location.reload(); }, 3000);</script>
+        <script>
+            setTimeout(function() {
+                var activeEl = document.activeElement;
+                if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                    return;
+                }
+                window.location.reload();
+            }, 3000);
+        </script>
         <br>
         <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
@@ -266,7 +282,15 @@ def student_waiting_results(test_name):
             <h2>في انتظار النتائج</h2>
             <p>✅ تم إرسال إجاباتك بنجاح يا <b>""" + session['student_name'] + """</b>!</p>
             <p>⏳ يرجى الانتظار حتى ينهي بقية الزملاء أو ينتهي الوقت لإعلان النتائج...</p>
-            <script>setTimeout(function() { window.location.reload(); }, 3000);</script>
+            <script>
+                setTimeout(function() {
+                    var activeEl = document.activeElement;
+                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                        return;
+                    }
+                    window.location.reload();
+                }, 3000);
+            </script>
         """
         return render_template_string(HTML_TEMPLATE, content=content)
     else:
@@ -338,7 +362,6 @@ def teacher_dashboard():
     active_data = load_active_test()
     results = load_results()
     msg = ""
-    
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'set_active':
@@ -442,7 +465,15 @@ def teacher_dashboard():
                 <ul style="text-align: right; background: #fff; padding: 10px 20px; border-radius: 6px; border: 1px solid #d1d5db;">
                     """ + (participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حتى الآن...</li>") + """
                 </ul>
-                <script>setTimeout(function() { window.location.reload(); }, 3000);</script>
+                <script>
+                    setTimeout(function() {
+                        var activeEl = document.activeElement;
+                        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                            return;
+                        }
+                        window.location.reload();
+                    }, 3000);
+                </script>
                 
                 <div style="margin-top: 20px;">
                     """ + control_buttons + """
@@ -549,6 +580,7 @@ def edit_test(test_name):
                 </form>
             </div>
         """
+
     content = """
         <h2>إدارة اختبار: """ + test_name + """</h2>
         <p style="color: green; font-weight: bold;">""" + msg + """</p>
