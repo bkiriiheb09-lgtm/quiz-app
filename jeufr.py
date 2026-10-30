@@ -47,146 +47,19 @@ HTML_TEMPLATE = """
     <title>منصة الاختبارات التعليمية</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #1e3a8a;
-            color: #000000;
-            margin: 0;
-            padding: 20px;
-            text-align: center;
-        }
-        .card {
-            background: #ffffff;
-            width: 95%;
-            max-width: 600px;
-            margin: 30px auto;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-            box-sizing: border-box;
-            text-align: right;
-        }
-        h2, h3, p {
-            color: #000000;
-        }
-        button, input[type="submit"], a.btn {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            margin: 10px 0;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            text-decoration: none;
-            display: block;
-            width: 100%;
-            box-sizing: border-box;
-            text-align: center;
-        }
-        button:hover, a.btn:hover {
-            background: #2563eb;
-        }
-        input[type="text"], input[type="password"], select {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
-        label {
-            display: block;
-            margin: 10px 0;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .timer-box {
-            background: #fee2e2;
-            color: #dc2626;
-            padding: 10px;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 18px;
-            margin-bottom: 20px;
-            text-align: center;
-            border: 1px solid #fecaca;
-        }
-        table.ranking {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-        table.ranking th, table.ranking td {
-            border: 1px solid #d1d5db;
-            padding: 8px;
-            text-align: center;
-            font-size: 14px;
-        }
-        table.ranking th {
-            background-color: #f3f4f6;
-            color: #111827;
-        }
-        .admin-test-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f9fafb;
-            padding: 10px;
-            margin: 8px 0;
-            border-radius: 6px;
-            border: 1px solid #e5e7eb;
-        }
+        body { font-family: Arial, sans-serif; background-color: #1e3a8a; color: #000; margin: 0; padding: 20px; text-align: center; }
+        .card { background: #fff; width: 95%; max-width: 600px; margin: 30px auto; padding: 25px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.3); text-align: right; box-sizing: border-box; }
+        h2, h3, p { color: #000; }
+        button, input[type="submit"], a.btn { background: #3b82f6; color: white; border: none; padding: 12px 20px; margin: 10px 0; border-radius: 8px; cursor: pointer; font-size: 16px; text-decoration: none; display: block; width: 100%; box-sizing: border-box; text-align: center; }
+        button:hover, a.btn:hover { background: #2563eb; }
+        input[type="text"], input[type="password"], select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        label { display: block; margin: 10px 0; font-size: 16px; cursor: pointer; }
+        .timer-box { background: #fee2e2; color: #dc2626; padding: 10px; border-radius: 8px; font-weight: bold; font-size: 18px; margin-bottom: 20px; text-align: center; border: 1px solid #fecaca; }
+        table.ranking { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        table.ranking th, table.ranking td { border: 1px solid #d1d5db; padding: 8px; text-align: center; font-size: 14px; }
+        table.ranking th { background-color: #f3f4f6; color: #111827; }
+        .admin-test-row { display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #e5e7eb; }
     </style>
-    <script>
-        function playClickSound() {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(400, ctx.currentTime);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.08);
-        }
-
-        function playSuccessSound() {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-                let osc = ctx.createOscillator();
-                let gain = ctx.createGain();
-                osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
-                gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.1);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(ctx.currentTime + i * 0.1);
-                osc.stop(ctx.currentTime + i * 0.1 + 0.15);
-            });
-        }
-
-        function playFailSound() {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            [300, 200].forEach((freq, i) => {
-                let osc = ctx.createOscillator();
-                let gain = ctx.createGain();
-                osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.2);
-                gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.2);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(ctx.currentTime + i * 0.2);
-                osc.stop(ctx.currentTime + i * 0.2 + 0.2);
-            });
-        }
-        
-        document.addEventListener("DOMContentLoaded", () => {
-            document.querySelectorAll("button, input, label").forEach(el => {
-                el.addEventListener("click", playClickSound);
-            });
-        });
-    </script>
 </head>
 <body>
     <div class="card">
@@ -241,9 +114,7 @@ def waiting_room():
     content = """
         <h2>قاعة الانتظار</h2>
         <p>⏳ في انتظار الأستاذ حتى يختار الاختبار ويقوم بفتحه...</p>
-        <script>
-            setTimeout(() => { window.location.reload(); }, 3000);
-        </script>
+        <script>setTimeout(() => { window.location.reload(); }, 3000);</script>
         <br>
         <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
@@ -289,17 +160,9 @@ def quiz(test_name):
         
         ranking_html = ""
         for rank, res in enumerate(sorted_results, 1):
-            ranking_html += f"""
-                <tr>
-                    <td>{rank}</td>
-                    <td>{res['name']}</td>
-                    <td><b>{res['score']} / {res['total']}</b></td>
-                    <td>{res['time']} ثانية</td>
-                </tr>
-            """
+            ranking_html += f"<tr><td>{rank}</td><td>{res['name']}</td><td><b>{res['score']} / {res['total']}</b></td><td>{res['time']} ثانية</td></tr>"
             
         passed = (score / total) >= 0.5
-        sound_script = "playSuccessSound();" if passed else "playFailSound();"
         msg = "🎉 ممتاز جداً! تفوق باهر في الاختبار!" if passed else "💪 حاول مرة أخرى في المرة القادمة!"
         
         content = f"""
@@ -311,25 +174,15 @@ def quiz(test_name):
             
             <h3 style="margin-top: 20px;">🏆 ترتيب التلامذة:</h3>
             <table class="ranking">
-                <tr>
-                    <th>المرتبة</th>
-                    <th>الاسم واللقب</th>
-                    <th>النقاط</th>
-                    <th>الوقت</th>
-                </tr>
+                <tr><th>المرتبة</th><th>الاسم واللقب</th><th>النقاط</th><th>الوقت</th></tr>
                 {ranking_html}
             </table>
-            
-            <script>
-                setTimeout(() => {{ {sound_script} }}, 500);
-            </script>
             <br>
             <a href="/" class="btn" style="background: #6b7280;">العودة للرئيسية</a>
         """
         return render_template_string(HTML_TEMPLATE, content=content)
     
     session['start_time'] = time.time()
-    
     q_html = ""
     for i, q in enumerate(questions):
         opts = ""
@@ -341,22 +194,17 @@ def quiz(test_name):
         <h2>اختبار: {test_name}</h2>
         <p>التلميذ: <b>{session.get('student_name')}</b></p>
         <div class="timer-box" id="timer">⏳ الوقت المتبقي: 03:00</div>
-        
         <form id="quizForm" method="POST">
             {q_html}
             <button type="submit">إرسال الإجابات (Valider)</button>
         </form>
-
         <script>
             let timeLeft = 180;
             const timerElement = document.getElementById("timer");
-            
             const countdown = setInterval(() => {
                 let minutes = Math.floor(timeLeft / 60);
                 let seconds = timeLeft % 60;
-                
                 timerElement.innerHTML = ⏳ الوقت المتبقي: ${{minutes.toString().padStart(2, '0')}}:${seconds.toString().padStart(2, '0')}};
-                
                 if (timeLeft <= 0) {
                     clearInterval(countdown);
                     alert("⏰ انتهى الوقت المتبقي! سيتم إرسال إجاباتك تلقائياً.");
@@ -403,7 +251,7 @@ def teacher_dashboard():
             chosen_test = request.form.get('active_test')
             active_data['active'] = chosen_test
             save_json(ACTIVE_TEST_FILE, active_data)
-            msg = f"تم تفعيل الاختبار '{chosen_test}' بنجاح ليظهر للتلامذة!"
+            msg = f"تم تفعيل الاختبار '{chosen_test}' بنجاح!"
         elif action == 'add_test':
             t_name = request.form.get('test_name').strip()
             if t_name and t_name not in tests:
@@ -461,7 +309,7 @@ def teacher_dashboard():
             <input type="hidden" name="action" value="set_active">
             <label>اختر الاختبار الذي سيعمل الآن:</label>
             <select name="active_test">{test_select_options}</select>
-            <button type="submit" style="background: #2563eb;">تفعيل هذا الاختبار</button>
+            <button type="submit" style="background: #2563eb;">تفعيل هذا الاختبار وتوليد QR كود</button>
         </form>
         
         {teacher_qr_html}
@@ -561,7 +409,6 @@ def edit_test(test_name):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
 
 
 
