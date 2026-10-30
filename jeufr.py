@@ -60,6 +60,27 @@ HTML_TEMPLATE = """
         table.ranking th { background-color: #f3f4f6; color: #111827; }
         .admin-test-row { display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #e5e7eb; }
     </style>
+    <script>
+        function playClickSound() {
+            try {
+                var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                var osc = ctx.createOscillator();
+                var gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.08);
+            } catch(e) {}
+        }
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll("button, input, label").forEach(function(el) {
+                el.addEventListener("click", playClickSound);
+            });
+        });
+    </script>
 </head>
 <body>
     <div class="card">
@@ -114,7 +135,7 @@ def waiting_room():
     content = """
         <h2>قاعة الانتظار</h2>
         <p>⏳ في انتظار الأستاذ حتى يختار الاختبار ويقوم بفتحه...</p>
-        <script>setTimeout(() => { window.location.reload(); }, 3000);</script>
+        <script>setTimeout(function() { window.location.reload(); }, 3000);</script>
         <br>
         <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
@@ -135,7 +156,7 @@ def quiz(test_name):
         score = 0
         total = len(questions)
         for i, q in enumerate(questions):
-            user_ans = request.form.get(f'q_{i}')
+            user_ans = request.form.get('q_' + str(i))
             if user_ans is not None and int(user_ans) == q['answer']:
                 score += 1
         
@@ -160,22 +181,22 @@ def quiz(test_name):
         
         ranking_html = ""
         for rank, res in enumerate(sorted_results, 1):
-            ranking_html += f"<tr><td>{rank}</td><td>{res['name']}</td><td><b>{res['score']} / {res['total']}</b></td><td>{res['time']} ثانية</td></tr>"
+            ranking_html += "<tr><td>" + str(rank) + "</td><td>" + res['name'] + "</td><td><b>" + str(res['score']) + " / " + str(res['total']) + "</b></td><td>" + str(res['time']) + " ثانية</td></tr>"
             
         passed = (score / total) >= 0.5
         msg = "🎉 ممتاز جداً! تفوق باهر في الاختبار!" if passed else "💪 حاول مرة أخرى في المرة القادمة!"
         
-        content = f"""
-            <h2>نتيجة الاختبار: {test_name}</h2>
-            <p>التلميذ: <b>{student_name}</b></p>
-            <p>لقد أجبت على <b>{score}</b> من أصل <b>{total}</b> إجابة صحيحة.</p>
-            <p>الوقت المستغرق: <b>{time_taken} ثانية</b></p>
-            <p style="font-size: 16px; font-weight: bold; color: {'#16a34a' if passed else '#dc2626'};">{msg}</p>
+        content = """
+            <h2>نتيجة الاختبار: """ + test_name + """</h2>
+            <p>التلميذ: <b>""" + student_name + """</b></p>
+            <p>لقد أجبت على <b>""" + str(score) + """</b> من أصل <b>""" + str(total) + """</b> إجابة صحيحة.</p>
+            <p>الوقت المستغرق: <b>""" + str(time_taken) + """ ثانية</b></p>
+            <p style="font-size: 16px; font-weight: bold; color: """ + ('#16a34a' if passed else '#dc2626') + """;">""" + msg + """</p>
             
             <h3 style="margin-top: 20px;">🏆 ترتيب التلامذة:</h3>
             <table class="ranking">
                 <tr><th>المرتبة</th><th>الاسم واللقب</th><th>النقاط</th><th>الوقت</th></tr>
-                {ranking_html}
+                """ + ranking_html + """
             </table>
             <br>
             <a href="/" class="btn" style="background: #6b7280;">العودة للرئيسية</a>
@@ -187,24 +208,27 @@ def quiz(test_name):
     for i, q in enumerate(questions):
         opts = ""
         for j, opt in enumerate(q['options']):
-            opts += f'<label><input type="radio" name="q_{i}" value="{j}" required> {opt}</label>'
-        q_html += f"<div style='margin-bottom: 20px;'><p><b>السؤال {i+1}:</b> {q['question']}</p>{opts}</div>"
+            opts += '<label><input type="radio" name="q_' + str(i) + '" value="' + str(j) + '" required> ' + opt + '</label>'
+        q_html += "<div style='margin-bottom: 20px;'><p><b>السؤال " + str(i+1) + ":</b> " + q['question'] + "</p>" + opts + "</div>"
         
-    content = f"""
-        <h2>اختبار: {test_name}</h2>
-        <p>التلميذ: <b>{session.get('student_name')}</b></p>
+    content = """
+        <h2>اختبار: """ + test_name + """</h2>
+        <p>التلميذ: <b>""" + session.get('student_name', '') + """</b></p>
         <div class="timer-box" id="timer">⏳ الوقت المتبقي: 03:00</div>
         <form id="quizForm" method="POST">
-            {q_html}
+            """ + q_html + """
             <button type="submit">إرسال الإجابات (Valider)</button>
         </form>
         <script>
-            let timeLeft = 180;
-            const timerElement = document.getElementById("timer");
-            const countdown = setInterval(() => {
-                let minutes = Math.floor(timeLeft / 60);
-                let seconds = timeLeft % 60;
-                timerElement.innerHTML = '⏳ الوقت المتبقي: ${{minutes.toString().padStart(2, '0')}}:${seconds.toString().padStart(2, '0')}'};
+            var timeLeft = 180;
+            var timerElement = document.getElementById("timer");
+            var countdown = setInterval(function() {
+                var minutes = Math.floor(timeLeft / 60);
+                var seconds = timeLeft % 60;
+                var minStr = minutes < 10 ? '0' + minutes : minutes;
+                var secStr = seconds < 10 ? '0' + seconds : seconds;
+                timerElement.innerHTML = '⏳ الوقت المتبقي: ' + minStr + ':' + secStr;
+                
                 if (timeLeft <= 0) {
                     clearInterval(countdown);
                     alert("⏰ انتهى الوقت المتبقي! سيتم إرسال إجاباتك تلقائياً.");
@@ -226,14 +250,14 @@ def teacher_login():
         else:
             error = "❌ الكود السري غير صحيح!"
             
-    content = f"""
+    content = """
         <h2>تسجيل دخول الأستاذ</h2>
         <p>الرجاء إدخال الكود السري:</p>
         <form method="POST">
             <input type="password" name="code" placeholder="أدخل الكود (مثال: 1234)" required>
             <button type="submit">دخول</button>
         </form>
-        <p style="color: red;">{error}</p>
+        <p style="color: red;">""" + error + """</p>
         <br>
         <a href="/" class="btn" style="background: #6b7280;">الرجوع</a>
     """
@@ -251,13 +275,13 @@ def teacher_dashboard():
             chosen_test = request.form.get('active_test')
             active_data['active'] = chosen_test
             save_json(ACTIVE_TEST_FILE, active_data)
-            msg = f"تم تفعيل الاختبار '{chosen_test}' بنجاح!"
+            msg = "تم تفعيل الاختبار '" + chosen_test + "' بنجاح!"
         elif action == 'add_test':
-            t_name = request.form.get('test_name').strip()
+            t_name = request.form.get('test_name', '').strip()
             if t_name and t_name not in tests:
                 tests[t_name] = []
                 save_json(TESTS_FILE, tests)
-                msg = f"تم إضافة الاختبار '{t_name}' بنجاح!"
+                msg = "تم إضافة الاختبار '" + t_name + "' بنجاح!"
         elif action == 'delete_test':
             t_name = request.form.get('test_name')
             if t_name in tests:
@@ -266,57 +290,60 @@ def teacher_dashboard():
                 if active_data.get('active') == t_name:
                     active_data['active'] = ""
                     save_json(ACTIVE_TEST_FILE, active_data)
-                msg = f"تم حذف الاختبار '{t_name}' بنجاح!"
+                msg = "تم حذف الاختبار '" + t_name + "' بنجاح!"
 
     active_test = active_data.get('active', '')
     teacher_qr_html = ""
     if active_test:
-        quiz_url = f"https://quiz-app-7wny.onrender.com/quiz/{urllib.parse.quote(active_test)}"
-        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=160x160&data={quiz_url}"
-        teacher_qr_html = f"""
+        quiz_url = "https://quiz-app-7wny.onrender.com/quiz/" + urllib.parse.quote(active_test)
+        qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + quiz_url
+        teacher_qr_html = """
             <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود خاص بالاختبار النشط الحالي ({active_test}):</p>
-                <img src="{qr_url}" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود خاص بالاختبار النشط الحالي (""" + active_test + """ ):</p>
+                <img src="""" + qr_url + """" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
                 <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">اعرض هذا الكود لتلامذتك لمسحه والدخول المباشر</p>
             </div>
         """
                 
-    test_select_options = "".join([f'<option value="{name}" {"selected" if name == active_test else ""}>{name}</option>' for name in tests.keys()])
+    test_select_options = ""
+    for name in tests.keys():
+        sel = "selected" if name == active_test else ""
+        test_select_options += '<option value="' + name + '" ' + sel + '>' + name + '</option>'
     
     tests_management_html = ""
     for name in tests.keys():
-        tests_management_html += f"""
+        tests_management_html += """
             <div class="admin-test-row">
-                <span><b>{name}</b> ({len(tests[name])} أسئلة)</span>
+                <span><b>""" + name + """</b> (""" + str(len(tests[name])) + """ أسئلة)</span>
                 <div style="display: flex; gap: 5px;">
-                    <a href="/teacher/edit_test/{urllib.parse.quote(name)}" class="btn" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #2563eb;">⚙️ تعديل/أسئلة</a>
+                    <a href="/teacher/edit_test/""" + urllib.parse.quote(name) + """" class="btn" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #2563eb;">⚙️ تعديل/أسئلة</a>
                     <form method="POST" style="margin:0;" onsubmit="return confirm('هل أنت متأكد من حذف هذا الاختبار؟');">
                         <input type="hidden" name="action" value="delete_test">
-                        <input type="hidden" name="test_name" value="{name}">
+                        <input type="hidden" name="test_name" value="""" + name + """">
                         <button type="submit" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #dc2626;">🗑️ حذف</button>
                     </form>
                 </div>
             </div>
         """
     
-    content = f"""
+    content = """
         <h2>لوحة تحكم الأستاذ</h2>
-        <p style="color: green; font-weight: bold;">{msg}</p>
+        <p style="color: green; font-weight: bold;">""" + msg + """</p>
         
         <hr style="margin: 20px 0;">
         <h3>🎯 اختيار الاختبار النشط للتلامذة</h3>
         <form method="POST">
             <input type="hidden" name="action" value="set_active">
             <label>اختر الاختبار الذي سيعمل الآن:</label>
-            <select name="active_test">{test_select_options}</select>
+            <select name="active_test">""" + test_select_options + """</select>
             <button type="submit" style="background: #2563eb;">تفعيل هذا الاختبار وتوليد QR كود</button>
         </form>
         
-        {teacher_qr_html}
+        """ + teacher_qr_html + """
         
         <hr style="margin: 20px 0;">
         <h3>📚 إدارة الاختبارات الحالية</h3>
-        {tests_management_html if tests_management_html else "<p>لا توجد اختبارات حالياً.</p>"}
+        """ + (tests_management_html if tests_management_html else "<p>لا توجد اختبارات حالياً.</p>") + """
         
         <hr style="margin: 20px 0;">
         <h3>إضافة اختبار جديد</h3>
@@ -364,33 +391,33 @@ def edit_test(test_name):
     q_list_html = ""
     for idx, q in enumerate(questions):
         correct_opt = q['options'][q['answer']]
-        q_list_html += f"""
+        q_list_html += """
             <div class="admin-test-row">
                 <div style="text-align: right; flex-grow: 1;">
-                    <p style="margin: 0 0 5px 0;"><b>السؤال {idx+1}:</b> {q['question']}</p>
-                    <p style="margin: 0; font-size: 13px; color: #4b5563;">الإجابة الصحيحة: <b>{correct_opt}</b></p>
+                    <p style="margin: 0 0 5px 0;"><b>السؤال """ + str(idx+1) + """:</b> """ + q['question'] + """</p>
+                    <p style="margin: 0; font-size: 13px; color: #4b5563;">الإجابة الصحيحة: <b>""" + correct_opt + """</b></p>
                 </div>
                 <form method="POST" style="margin: 0;" onsubmit="return confirm('هل تريد حذف هذا السؤال؟');">
                     <input type="hidden" name="action" value="delete_question">
-                    <input type="hidden" name="q_idx" value="{idx}">
+                    <input type="hidden" name="q_idx" value="""" + str(idx) + """">
                     <button type="submit" style="padding: 6px 10px; font-size: 13px; margin: 0; background: #dc2626;">حذف</button>
                 </form>
             </div>
         """
 
-    content = f"""
-        <h2>إدارة اختبار: {test_name}</h2>
-        <p style="color: green; font-weight: bold;">{msg}</p>
+    content = """
+        <h2>إدارة اختبار: """ + test_name + """</h2>
+        <p style="color: green; font-weight: bold;">""" + msg + """</p>
         
         <h3 style="margin-top: 15px;">أسئلة الاختبار الحالية:</h3>
-        {q_list_html if q_list_html else "<p>لا توجد أسئلة في هذا الاختبار بعد.</p>"}
+        """ + (q_list_html if q_list_html else "<p>لا توجد أسئلة في هذا الاختبار بعد.</p>") + """
         
         <hr style="margin: 20px 0;">
         <h3>➕ إضافة سؤال جديد لهذا الاختبار</h3>
         <form method="POST">
             <input type="hidden" name="action" value="add_question">
             <input type="text" name="question" placeholder="نص السؤال" required>
-            <input type="text" name="opt0" placeholder="الخيار الأول" required>
+            <input type="text" name="opt0" placeholder=" الخيار الأول" required>
             <input type="text" name="opt1" placeholder="الخيار الثاني" required>
             <input type="text" name="opt2" placeholder="الخيار الثالث" required>
             <label>رقم الإجابة الصحيحة:</label>
