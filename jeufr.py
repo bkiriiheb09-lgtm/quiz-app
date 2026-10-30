@@ -297,13 +297,13 @@ def teacher_dashboard():
     if active_test:
         quiz_url = "https://quiz-app-7wny.onrender.com/quiz/" + urllib.parse.quote(active_test)
         qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + quiz_url
-        teacher_qr_html = """
-            <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود خاص بالاختبار النشط الحالي (""" + active_test + """ ):</p>
-                <img src="""" + qr_url + """" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
-                <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">اعرض هذا الكود لتلامذتك لمسحه والدخول المباشر</p>
-            </div>
-        """
+        teacher_qr_html = (
+            '<div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">'
+            '<p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود خاص بالاختبار النشط الحالي (' + active_test + '):</p>'
+            '<img src="' + qr_url + '" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">'
+            '<p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">اعرض هذا الكود لتلامذتك لمسحه والدخول المباشر</p>'
+            '</div>'
+        )
                 
     test_select_options = ""
     for name in tests.keys():
@@ -417,7 +417,7 @@ def edit_test(test_name):
         <form method="POST">
             <input type="hidden" name="action" value="add_question">
             <input type="text" name="question" placeholder="نص السؤال" required>
-            <input type="text" name="opt0" placeholder=" الخيار الأول" required>
+            <input type="text" name="opt0" placeholder="الخيار الأول" required>
             <input type="text" name="opt1" placeholder="الخيار الثاني" required>
             <input type="text" name="opt2" placeholder="الخيار الثالث" required>
             <label>رقم الإجابة الصحيحة:</label>
@@ -436,7 +436,6 @@ def edit_test(test_name):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
 
 
 
