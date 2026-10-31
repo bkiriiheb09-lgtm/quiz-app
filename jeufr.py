@@ -235,7 +235,7 @@ def teacher_dashboard():
                 <a href="/results/""" + urllib.parse.quote(active_test) + """" class="btn" style="background: #2563eb;">🏆 عرض النتائج النهائية والإصلاح</a>
             """
 
-        teacher_qr_html = f"""
+        teacher_qr_html = """
             <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
                 <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود الدخول للتلاميذ:</p>
                 <img src="{qr_url}" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
