@@ -593,17 +593,16 @@ def edit_test(test_name):
             opt1 = request.form.get('opt1')
             opt2 = request.form.get('opt2')
             ans = int(request.form.get('answer'))
-            supabase.table('questions').insert({
-                "quiz_id": test_name,
-                "question_text": q_text,
-                "options": [opt0, opt1, opt2],
-                "correct_option": ans
-            }).execute()
-            tests[test_name].append({
-                "question": q_text,
-                "options": [opt0, opt1, opt2],
-                "answer": ans
-            })
+       # حفظ التحديثات في جدول kv_store الموجود في Supabase بصفة دائمة
+            save_teacher_data(t_id, dev_data)
+            if supabase:
+                try:
+                    supabase.table('kv_store').upsert({
+                        'key': f'teacher_data_{t_id}', 
+                        'value': dev_data
+                    }).execute()
+                except Exception as e:
+                    print("Supabase Error:", e)
 
             msg = "تم إضافة السؤال بنجاح"
 
