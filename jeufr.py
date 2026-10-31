@@ -4,11 +4,16 @@ import time
 import uuid
 import urllib.parse
 from flask import Flask, render_template_string, request, redirect, url_for, session
-from supabase import create_client, Client
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+# حماية ضد عدم توفر مكتبة supabase لكي لا يطيح السيرفر
+try:
+    from supabase import create_client, Client
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+except ImportError:
+    supabase = None
+    print("Warning: supabase module is not installed.")
 
 app = Flask(_name_)
 app.secret_key = "super_secret_quiz_key_device_isolated_2026"
