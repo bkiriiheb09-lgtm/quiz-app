@@ -586,16 +586,12 @@ def edit_test(test_name):
             opt1 = request.form.get('opt1')
             opt2 = request.form.get('opt2')
             ans = int(request.form.get('answer'))
-            
-            # 1. الحفظ في قاعدة البيانات Supabase (دائم وما يموتش حتى لو رقد السيرفر)
             supabase.table('questions').insert({
                 "quiz_id": test_name,
                 "question_text": q_text,
                 "options": [opt0, opt1, opt2],
                 "correct_option": ans
             }).execute()
-
-            # 2. الحفظ في الذاكرة المؤقتة باش السؤال يظهر قدامك في الشاشة فوراً
             tests[test_name].append({
                 "question": q_text,
                 "options": [opt0, opt1, opt2],
