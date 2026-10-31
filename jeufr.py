@@ -235,29 +235,48 @@ def teacher_dashboard():
                 <a href="/results/""" + urllib.parse.quote(active_test) + """" class="btn" style="background: #2563eb;">🏆 عرض النتائج النهائية والإصلاح</a>
             """
 
+    teacher_qr_html = ""
+    if active_test:
+        quiz_url = request.host_url.rstrip('/') + url_for('student_entry', teacher=t_id)
+        qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + urllib.parse.quote(quiz_url)
+        
+        control_buttons = ""
+        if test_status == 'waiting':
+            control_buttons = """
+                <form method="POST">
+                    <input type="hidden" name="action" value="start_quiz">
+                    <button type="submit" style="background: #059669; font-size: 18px; padding: 15px;">🚀 انطلاق الاختبار الآن للتلاميذ</button>
+                </form>
+            """
+        elif test_status == 'started':
+            control_buttons = """
+                <p style="color: #d97706; font-weight: bold;">⏳ الاختبار جاري...</p>
+                <form method="POST">
+                    <input type="hidden" name="action" value="finish_quiz">
+                    <button type="submit" style="background: #dc2626; font-size: 18px; padding: 15px;">🏁 إنهاء الاختبار وإظهار النتائج للجميع</button>
+                </form>
+            """
+        else:
+            control_buttons = """
+                <p style="color: #16a34a; font-weight: bold;">🏁 انتهى الاختبار وتم نشر النتائج والإصلاح!</p>
+                <a href="/results/""" + urllib.parse.quote(active_test) + """" class="btn" style="background: #2563eb;">🏆 عرض النتائج النهائية والإصلاح</a>
+            """
+
         teacher_qr_html = """
             <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
                 <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود الدخول للتلاميذ:</p>
-                <img src="{qr_url}" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
+                <img src=""" + qr_url + """ alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
                 <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">امسح الكود لتسجيل الدخول والانتظار</p>
                 
                 <hr style="margin: 15px 0;">
                 <h3>👥 متابعة التلاميذ وحالة تقدمهم:</h3>
                 <ul style="text-align: right; background: #fff; padding: 10px 20px; border-radius: 6px; border: 1px solid #d1d5db;">
-                    {participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حتى الآن...</li>"}
+                    """ + (participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حتى الآن...</li>") + """
                 </ul>
-                <script>
-                    setTimeout(function() {
-                        var activeEl = document.activeElement;
-                        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
-                            return;
-                        }
-                        window.location.reload();
-                    }, 3000);
-                </script>
+                <a href="/teacher_dashboard" class="btn" style="background: #3b82f6; margin-top:10px; padding: 8px;">🔄 تحديث القائمة</a>
                 
                 <div style="margin-top: 20px;">
-                    {control_buttons}
+                    """ + control_buttons + """
                 </div>
             </div>
         """
