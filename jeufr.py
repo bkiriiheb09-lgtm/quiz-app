@@ -579,8 +579,21 @@ def delete_test(test_name):
 @app.route('/teacher/edit_test/<path:test_name>', methods=['GET', 'POST'])
 def edit_test(test_name):
     t_id = get_device_id()
-    dev_data = load_teacher_data(t_id)
-    tests = dev_data["tests"]
+    dev_data = {"tests": {}}
+    
+    # جلب البيانات مباشرة من جدول kv_store في Supabase بصفة دائمة
+    if supabase:
+        try:
+            res = supabase.table('kv_store').select('value').eq('key', f'teacher_data_{t_id}').execute()
+            if res.data and len(res.data) > 0:
+                dev_data = res.data[0]['value']
+        except Exception as e:
+            print("Supabase Load Error:", e)
+            dev_data = load_teacher_data(t_id) # كاحتياط لو صار خطأ
+    else:
+        dev_data = load_teacher_data(t_id)
+
+    tests = dev_data.get("tests", {})
     if test_name not in tests:
         return redirect(url_for('teacher_dashboard'))
 
