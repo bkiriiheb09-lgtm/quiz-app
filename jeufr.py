@@ -1,19 +1,17 @@
-from supabase import create_client, Client
-import os
-
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 import os
 import json
 import time
 import uuid
 import urllib.parse
 from flask import Flask, render_template_string, request, redirect, url_for, session
+from supabase import create_client, Client
 
-app = Flask(__name__)
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
+app = Flask(_name_)
 app.secret_key = "super_secret_quiz_key_device_isolated_2026"
-
 def get_device_id():
     """الحصول على معرف فريد ومستقل لكل أستاذ/جهاز"""
     if 'device_id' not in session:
