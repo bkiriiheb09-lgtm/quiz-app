@@ -1,3 +1,9 @@
+from supabase import create_client, Client
+import os
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 import os
 import json
 import time
@@ -350,7 +356,8 @@ def show_final_results(test_name):
     t_id = session.get('teacher_id') or get_device_id()
     dev_data = load_teacher_data(t_id)
     tests = dev_data["tests"]
-    questions = tests.get(test_name, [])
+   response = supabase.table('questions').select('*').eq('quiz_id', test_name).execute()
+   questions = response.data
     results = dev_data["results"]
     test_res = results.get(test_name, {"scores": []})
     sorted_scores = sorted(test_res.get("scores", []), key=lambda x: (-x['score'], x['time']))
@@ -573,19 +580,29 @@ def edit_test(test_name):
     msg = ""
     if request.method == 'POST':
         action = request.form.get('action')
-        if action == 'add_question':
+       if action == 'add_question':
             q_text = request.form.get('question')
             opt0 = request.form.get('opt0')
             opt1 = request.form.get('opt1')
             opt2 = request.form.get('opt2')
             ans = int(request.form.get('answer'))
+            
+            # 1. الحفظ في قاعدة البيانات Supabase (دائم وما يموتش حتى لو رقد السيرفر)
+            supabase.table('questions').insert({
+                "quiz_id": test_name,
+                "question_text": q_text,
+                "options": [opt0, opt1, opt2],
+                "correct_option": ans
+            }).execute()
+
+            # 2. الحفظ في الذاكرة المؤقتة باش السؤال يظهر قدامك في الشاشة فوراً
             tests[test_name].append({
                 "question": q_text,
                 "options": [opt0, opt1, opt2],
                 "answer": ans
             })
-            save_teacher_data(t_id, dev_data)
-            msg = "تم إضافة السؤال بنجاح!"
+
+            msg = "تم إضافة السؤال بنجاح"
 
     questions = tests[test_name]
     q_list_html = ""
