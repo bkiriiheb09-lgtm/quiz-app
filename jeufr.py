@@ -578,9 +578,9 @@ def edit_test(test_name):
         return redirect(url_for('teacher_dashboard'))
     
     msg = ""
-    if request.method == 'POST':
+   if request.method == 'POST':
         action = request.form.get('action')
-       if action == 'add_question':
+        if action == 'add_question':
             q_text = request.form.get('question')
             opt0 = request.form.get('opt0')
             opt1 = request.form.get('opt1')
