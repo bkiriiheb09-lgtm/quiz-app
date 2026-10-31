@@ -3,19 +3,23 @@ import json
 import time
 import uuid
 import urllib.parse
-from flask import Flask, render_template_string, request, redirect, url_for, session
+import subprocess
+import sys
 
-# حماية ضد عدم توفر مكتبة supabase لكي لا يطيح السيرفر
+# تثبيت مكتبة supabase أوتوماتيكياً إذا لم تكن موجودة في السيرفر
 try:
     from supabase import create_client, Client
-    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
-    SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 except ImportError:
-    supabase = None
-    print("Warning: supabase module is not installed.")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "supabase"])
+    from supabase import create_client, Client
 
-app = Flask(_name_)
+from flask import Flask, render_template_string, request, redirect, url_for, session
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
+app = Flask(__name__)
 app.secret_key = "super_secret_quiz_key_device_isolated_2026"
 def get_device_id():
     """الحصول على معرف فريد ومستقل لكل أستاذ/جهاز"""
