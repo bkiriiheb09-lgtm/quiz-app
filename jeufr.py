@@ -356,8 +356,8 @@ def show_final_results(test_name):
     t_id = session.get('teacher_id') or get_device_id()
     dev_data = load_teacher_data(t_id)
     tests = dev_data["tests"]
-   response = supabase.table('questions').select('*').eq('quiz_id', test_name).execute()
-   questions = response.data
+response = supabase.table('questions').select('*').eq('quiz_id', test_name).execute()
+questions = response.data
     results = dev_data["results"]
     test_res = results.get(test_name, {"scores": []})
     sorted_scores = sorted(test_res.get("scores", []), key=lambda x: (-x['score'], x['time']))
