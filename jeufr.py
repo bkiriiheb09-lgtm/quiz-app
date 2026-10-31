@@ -20,19 +20,36 @@ def get_teacher_file(t_id):
     return f"device_{safe_id}.json"
 
 def load_teacher_data(t_id):
-    """تحميل بيانات أستاذ معين"""
+    """تحميل بيانات أستاذ معين مع ضمان وجود اختبارات أساسية ثابتة لا تتفسخ أبداً"""
+    default_tests = {
+        "اختبار رياضيات 1": [
+            {"question": "9 * 6 =", "options": ["54", "49", "63"], "answer": 0},
+            {"question": "8 * 3 =", "options": ["21", "24", "27"], "answer": 1}
+        ],
+        "اختبار إيقاظ علمي": [
+            {"question": "ما عاصمة تونس؟", "options": ["سوسة", "تونس العاصمة", "صفاقس"], "answer": 1},
+            {"question": "كم عدد ركعات صلاة الصبح؟", "options": ["2", "3", "4"], "answer": 0}
+        ]
+    }
+    
     if not t_id:
-        return {"tests": {}, "active_test": {"active": "", "status": "waiting"}, "results": {}}
+        return {"tests": default_tests, "active_test": {"active": "", "status": "waiting"}, "results": {}}
+    
     filename = get_teacher_file(t_id)
     default_data = {
-        "tests": {},
+        "tests": default_tests,
         "active_test": {"active": "", "status": "waiting"},
         "results": {}
     }
+    
     if os.path.exists(filename):
         try:
             with open(filename, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # التأكد من وجود الاختبارات الأساسية حتى لو فارغة
+                if not data.get("tests"):
+                    data["tests"] = default_tests
+                return data
         except:
             return default_data
     return default_data
@@ -182,7 +199,7 @@ def student_entry():
 @app.route('/waiting_room')
 def waiting_room():
     if 'student_name' not in session:
-        return redirect(url_for('/'))
+        return redirect(url_for('index'))
     
     t_id = session.get('teacher_id')
     dev_data = load_teacher_data(t_id)
@@ -214,7 +231,7 @@ def waiting_room():
 @app.route('/quiz/<test_name>', methods=['GET', 'POST'])
 def quiz(test_name):
     if 'student_name' not in session:
-        return redirect(url_for('/'))
+        return redirect(url_for('index'))
     
     t_id = session.get('teacher_id')
     dev_data = load_teacher_data(t_id)
@@ -224,7 +241,7 @@ def quiz(test_name):
 
     tests = dev_data["tests"]
     if test_name not in tests:
-        return redirect(url_for('/'))
+        return redirect(url_for('index'))
     
     questions = tests[test_name]
     results = dev_data["results"]
@@ -302,7 +319,7 @@ def quiz(test_name):
 @app.route('/student_waiting_results/<test_name>')
 def student_waiting_results(test_name):
     if 'student_name' not in session:
-        return redirect(url_for('/'))
+        return redirect(url_for('index'))
         
     t_id = session.get('teacher_id')
     dev_data = load_teacher_data(t_id)
@@ -363,7 +380,7 @@ def show_final_results(test_name):
         """ + correction_html + """
         
         <br>
-        <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
+        <a href="/" class="btn" style="background: #6b7280;">العودة للرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
@@ -375,6 +392,7 @@ def teacher_dashboard():
     active_data = dev_data["active_test"]
     results = dev_data["results"]
     msg = ""
+    
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'set_active':
