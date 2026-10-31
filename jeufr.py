@@ -571,14 +571,14 @@ def delete_test(test_name):
 
 @app.route('/teacher/edit_test/<path:test_name>', methods=['GET', 'POST'])
 def edit_test(test_name):
-    t_id = get_device_id()
+ t_id = get_device_id()
     dev_data = load_teacher_data(t_id)
     tests = dev_data["tests"]
     if test_name not in tests:
         return redirect(url_for('teacher_dashboard'))
-    
+
     msg = ""
-   if request.method == 'POST':
+    if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add_question':
             q_text = request.form.get('question')
