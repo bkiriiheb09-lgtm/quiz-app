@@ -20,20 +20,20 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
 app = Flask(__name__)
-app.secret_key = "super_secret_quiz_key_device_isolated_2026"
+app.secret_key = "super_secret_quiz_key_email_isolated_2026"
 
-def get_device_id():
-    """الحصول على معرف فريد ومستقل لكل أستاذ/جهاز"""
-    if 'device_id' not in session:
-        session['device_id'] = str(uuid.uuid4())
-    return session['device_id']
+def get_safe_teacher_key(email):
+    """تحويل الإيميل إلى مفتاح آمن وخاص بالقاعدة والملفات"""
+    if not email:
+        return "default_teacher"
+    return "".join(c for c in email.lower() if c.isalnum() or c in ('_', '-'))
 
-def get_teacher_file(t_id):
-    safe_id = "".join(c for c in t_id if c.isalnum() or c in ('_', '-'))
-    return f"device_{safe_id}.json"
+def get_teacher_file(email):
+    safe_id = get_safe_teacher_key(email)
+    return f"teacher_{safe_id}.json"
 
-def load_teacher_data(t_id):
-    """تحميل بيانات الأستاذ من Supabase أولاً أو الملف المحلي كاحتياط"""
+def load_teacher_data(email):
+    """تحميل بيانات الأستاذ المرتبطة حصرياً بإيميله من Supabase أو الملف المحلي"""
     default_tests = {
         "اختبار رياضيات 1": [
             {"question": "9 * 6 =", "options": ["54", "49", "63"], "answer": 0},
@@ -47,12 +47,14 @@ def load_teacher_data(t_id):
         "results": {}
     }
     
-    if not t_id:
+    if not email:
         return default_data
         
+    db_key = f"teacher_email_{get_safe_teacher_key(email)}"
+    
     if supabase:
         try:
-            res = supabase.table('kv_store').select('value').eq('key', f'teacher_data_{t_id}').execute()
+            res = supabase.table('kv_store').select('value').eq('key', db_key).execute()
             if res.data and len(res.data) > 0:
                 data = res.data[0]['value']
                 if not data.get("tests"):
@@ -61,8 +63,7 @@ def load_teacher_data(t_id):
         except Exception as e:
             print("Supabase Load Error:", e)
             
-    # احتياطياً من الملف المحلي
-    filename = get_teacher_file(t_id)
+    filename = get_teacher_file(email)
     if os.path.exists(filename):
         try:
             with open(filename, "r", encoding="utf-8") as f:
@@ -75,12 +76,12 @@ def load_teacher_data(t_id):
             
     return default_data
 
-def save_teacher_data(t_id, data):
-    """حفظ البيانات بصفة دائمة في Supabase وفي الملف المحلي"""
-    if not t_id:
+def save_teacher_data(email, data):
+    """حفظ بيانات الأستاذ المرتبطة بالإيميل بصفة دائمة في Supabase وفي الملف المحلي"""
+    if not email:
         return
     try:
-        filename = get_teacher_file(t_id)
+        filename = get_teacher_file(email)
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception as e:
@@ -88,8 +89,9 @@ def save_teacher_data(t_id, data):
         
     if supabase:
         try:
+            db_key = f"teacher_email_{get_safe_teacher_key(email)}"
             supabase.table('kv_store').upsert({
-                'key': f'teacher_data_{t_id}', 
+                'key': db_key, 
                 'value': data
             }).execute()
         except Exception as e:
@@ -108,29 +110,13 @@ HTML_TEMPLATE = """
         h2, h3, p { color: #000; }
         button, input[type="submit"], a.btn { background: #3b82f6; color: white; border: none; padding: 12px 20px; margin: 10px 0; border-radius: 8px; cursor: pointer; font-size: 16px; text-decoration: none; display: block; width: 100%; box-sizing: border-box; text-align: center; }
         button:hover, a.btn:hover { background: #2563eb; }
-        input[type="text"], input[type="password"], select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        input[type="text"], input[type="email"], select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
         label { display: block; margin: 10px 0; font-size: 16px; cursor: pointer; }
         table.ranking { width: 100%; border-collapse: collapse; margin-top: 15px; }
         table.ranking th, table.ranking td { border: 1px solid #d1d5db; padding: 8px; text-align: center; font-size: 14px; }
         table.ranking th { background-color: #f3f4f6; color: #111827; }
         .admin-test-row { display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 10px; margin: 8px 0; border-radius: 6px; border: 1px solid #e5e7eb; }
     </style>
-    <script>
-        function playClickSound() {
-            try {
-                var ctx = new (window.AudioContext || window.webkitAudioContext)();
-                var osc = ctx.createOscillator();
-                var gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(400, ctx.currentTime);
-                gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start();
-                osc.stop(ctx.currentTime + 0.1);
-            } catch(e) {}
-        }
-    </script>
 </head>
 <body>
     <div class="card">
@@ -140,20 +126,31 @@ HTML_TEMPLATE = """
 </html>
 """
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
+    if request.method == 'POST':
+        email = request.form.get('teacher_email', '').strip().lower()
+        if email:
+            session['teacher_email'] = email
+            return redirect(url_for('teacher_dashboard'))
+            
     content = """
     <h2>مرحباً بكم في منصة الاختبارات التفاعلية</h2>
-    <p>اختر واجهة الدخول المناسبة لك:</p>
-    <a href="/teacher_dashboard" class="btn" style="background: #059669;">👨‍🏫 لوحة تحكم الأستاذ</a>
-    <a href="/student_join" class="btn" style="background: #2563eb;">🎓 دخول التلاميذ للاختبار</a>
+    <p>👨‍🏫 تسجيل دخول الأستاذ بالبريد الإلكتروني:</p>
+    <form method="POST">
+        <input type="email5" name="teacher_email" placeholder="أدخل بريدك الإلكتروني (Email)" required style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px;">
+        <button type="submit" style="background: #059669;">دخول إلى لوحة التحكم</button>
+    </form>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
 @app.route('/teacher_dashboard', methods=['GET', 'POST'])
 def teacher_dashboard():
-    t_id = get_device_id()
-    dev_data = load_teacher_data(t_id)
+    email = session.get('teacher_email')
+    if not email:
+        return redirect(url_for('index'))
+        
+    dev_data = load_teacher_data(email)
     tests = dev_data["tests"]
     active_data = dev_data["active_test"]
     results = dev_data["results"]
@@ -167,31 +164,31 @@ def teacher_dashboard():
             active_data['status'] = 'waiting'
             if chosen_test not in results:
                 results[chosen_test] = {"participants": [], "scores": [], "status": "waiting"}
-            save_teacher_data(t_id, dev_data)
-            msg = "تم اختيار الاختبار '" + chosen_test + "' وتفعيل قاعة الانتظار بنجاح!"
+            save_teacher_data(email, dev_data)
+            msg = "تم اختيار الاختبار وتفعيل قاعة الانتظار بنجاح!"
             
         elif action == 'start_quiz':
             active_data['status'] = 'started'
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'started'
-            save_teacher_data(t_id, dev_data)
-            msg = "🚀 تم إعطاء إشارة الانطلاق وبدأ الاختبار للتلاميذ!"
+            save_teacher_data(email, dev_data)
+            msg = "🚀 تم انطلاق الاختبار للتلاميذ!"
             
         elif action == 'finish_quiz':
             active_data['status'] = 'finished'
             chosen_test = active_data.get('active')
             if chosen_test in results:
                 results[chosen_test]['status'] = 'finished'
-            save_teacher_data(t_id, dev_data)
-            msg = "🏁 تم إنهاء الاختبار وعرض النتائج على هواتف الجميع!"
+            save_teacher_data(email, dev_data)
+            return redirect(url_for('show_final_results', test_name=chosen_test))
             
         elif action == 'add_test':
             t_name = request.form.get('test_name', '').strip()
             if t_name and t_name not in tests:
                 tests[t_name] = []
-                save_teacher_data(t_id, dev_data)
-                msg = "تم إضافة الاختبار '" + t_name + "' بنجاح!"
+                save_teacher_data(email, dev_data)
+                msg = "تم إضافة الاختبار بنجاح!"
 
     active_test = active_data.get('active', '')
     test_status = active_data.get('status', 'waiting')
@@ -205,20 +202,20 @@ def teacher_dashboard():
     participants_html = ""
     for p in current_participants:
         has_finished = any(s['name'] == p['name'] for s in finished_scores)
-        status_text = " ✅ (أنهى الاختبار)" if has_finished else " ⏳ (جاري الإجابة...)"
-        participants_html += "<li>👤 <b>" + p['name'] + "</b> " + status_text + "</li>"
+        status_text = " ✅ (أنهى)" if has_finished else " ⏳ (جاري...)"
+        participants_html += f"<li>👤 <b>{p['name']}</b> {status_text}</li>"
         
     teacher_qr_html = ""
     if active_test:
-        quiz_url = request.host_url.rstrip('/') + url_for('student_entry', teacher=t_id)
-        qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + urllib.parse.quote(quiz_url)
+        quiz_url = request.host_url.rstrip('/') + url_for('student_entry', teacher_key=get_safe_teacher_key(email))
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=160x160&data={urllib.parse.quote(quiz_url)}"
         
         control_buttons = ""
         if test_status == 'waiting':
             control_buttons = """
                 <form method="POST">
                     <input type="hidden" name="action" value="start_quiz">
-                    <button type="submit" style="background: #059669; font-size: 18px; padding: 15px;">🚀 انطلاق الاختبار الآن للتلاميذ</button>
+                    <button type="submit" style="background: #059669; font-size: 18px; padding: 15px;">🚀 انطلاق الاختبار الآن</button>
                 </form>
             """
         elif test_status == 'started':
@@ -230,94 +227,76 @@ def teacher_dashboard():
                 </form>
             """
         else:
-            control_buttons = """
-                <p style="color: #16a34a; font-weight: bold;">🏁 انتهى الاختبار وتم نشر النتائج والإصلاح!</p>
-                <a href="/results/""" + urllib.parse.quote(active_test) + """" class="btn" style="background: #2563eb;">🏆 عرض النتائج النهائية والإصلاح</a>
+            control_buttons = f"""
+                <p style="color: #16a34a; font-weight: bold;">🏁 انتهى الاختبار!</p>
+                <a href="/results/{urllib.parse.quote(active_test)}" class="btn" style="background: #2563eb;">🏆 عرض النتائج النهائية والإصلاح</a>
             """
 
-    teacher_qr_html = ""
-    if active_test:
-        quiz_url = request.host_url.rstrip('/') + url_for('student_entry', teacher=t_id)
-        qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=" + urllib.parse.quote(quiz_url)
+        parts_list = participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حالياً...</li>"
         
-        control_buttons = ""
-        if test_status == 'waiting':
-            control_buttons = """
-                <form method="POST">
-                    <input type="hidden" name="action" value="start_quiz">
-                    <button type="submit" style="background: #059669; font-size: 18px; padding: 15px;">🚀 انطلاق الاختبار الآن للتلاميذ</button>
-                </form>
-            """
-        elif test_status == 'started':
-            control_buttons = """
-                <p style="color: #d97706; font-weight: bold;">⏳ الاختبار جاري...</p>
-                <form method="POST">
-                    <input type="hidden" name="action" value="finish_quiz">
-                    <button type="submit" style="background: #dc2626; font-size: 18px; padding: 15px;">🏁 إنهاء الاختبار وإظهار النتائج للجميع</button>
-                </form>
-            """
-        else:
-            control_buttons = """
-                <p style="color: #16a34a; font-weight: bold;">🏁 انتهى الاختبار وتم نشر النتائج والإصلاح!</p>
-                <a href="/results/""" + urllib.parse.quote(active_test) + """" class="btn" style="background: #2563eb;">🏆 عرض النتائج النهائية والإصلاح</a>
-            """
-
-        teacher_qr_html = """
-            <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
-                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 QR كود الدخول للتلاميذ:</p>
-                <img src=""" + qr_url + """ alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
-                <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">امسح الكود لتسجيل الدخول والانتظار</p>
-                
-                <hr style="margin: 15px 0;">
-                <h3>👥 متابعة التلاميذ وحالة تقدمهم:</h3>
-                <ul style="text-align: right; background: #fff; padding: 10px 20px; border-radius: 6px; border: 1px solid #d1d5db;">
-                    """ + (participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حتى الآن...</li>") + """
-                </ul>
-                <a href="/teacher_dashboard" class="btn" style="background: #3b82f6; margin-top:10px; padding: 8px;">🔄 تحديث القائمة</a>
-                
-                <div style="margin-top: 20px;">
-                    """ + control_buttons + """
-                </div>
-            </div>
-        """
+        teacher_qr_html = (
+            '<div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">'
+            '<p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 رابط QR كود دخول التلاميذ:</p>'
+            f'<img src="{qr_url}" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">'
+            f'<p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;"><a href="{quiz_url}" target="_blank">{quiz_url}</a></p>'
+            '<hr style="margin: 15px 0;">'
+            '<h3>👥 متابعة التلاميذ:</h3>'
+            '<ul style="text-align: right; background: #fff; padding: 10px 20px; border-radius: 6px; border: 1px solid #d1d5db;">'
+            f'{parts_list}'
+            '</ul>'
+            '<script>'
+            'setTimeout(function() {'
+            'var activeEl = document.activeElement;'
+            "if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {"
+            'return;'
+            '}'
+            'window.location.reload();'
+            '}, 3000);'
+            '</script>'
+            '<div style="margin-top: 20px;">'
+            f'{control_buttons}'
+            '</div>'
+            '</div>'
+        )
 
     test_select_options = ""
     for name in tests.keys():
         sel = "selected" if name == active_test else ""
-        test_select_options += '<option value="' + name + '" ' + sel + '>' + name + '</option>'
+        test_select_options += f'<option value="{name}" {sel}>{name}</option>'
     
     tests_management_html = ""
     for name in tests.keys():
-        tests_management_html += """
+        tests_management_html += f"""
             <div class="admin-test-row">
-                <span><b>""" + name + """</b> (""" + str(len(tests[name])) + """ أسئلة)</span>
+                <span><b>{name}</b> ({len(tests[name])} أسئلة)</span>
                 <div style="display: flex; gap: 5px;">
-                    <a href="/teacher/edit_test/""" + urllib.parse.quote(name) + """" class="btn" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #2563eb;">⚙️ تعديل/أسئلة</a>
-                    <form action="/teacher/delete_test/""" + urllib.parse.quote(name) + """" method="POST" style="margin:0;" onsubmit="return confirm('هل أنت متأكد من حذف هذا الاختبار؟');">
+                    <a href="/teacher/edit_test/{urllib.parse.quote(name)}" class="btn" style="padding: 6px 12px; font-size: 14px; margin: 0; background: #2563eb;">⚙️ تعديل</a>
+                    <form action="/teacher/delete_test/{urllib.parse.quote(name)}" method="POST" style="margin:0;" onsubmit="return confirm('حذف هذا الاختبار؟');">
                         <button type="submit" style="padding: 6px 12px; font-size: 13px; margin: 0; background: #dc2626;">حذف</button>
                     </form>
                 </div>
             </div>
         """
 
-    content = """
-        <h2>لوحة تحكم الأستاذ (خاصة بجهازك فقط)</h2>
-        <p style="color: green; font-weight: bold;">""" + msg + """</p>
+    content = f"""
+        <h2>لوحة تحكم الأستاذ</h2>
+        <p style="color: #4b5563; font-size: 14px;">مرحباً بك: <b>{email}</b> | <a href="/" style="color: #dc2626;">خروج</a></p>
+        <p style="color: green; font-weight: bold;">{msg}</p>
         
         <hr style="margin: 20px 0;">
         <h3>🎯 اختيار وتفعيل الاختبار</h3>
         <form method="POST">
             <input type="hidden" name="action" value="set_active">
-            <label>اختر الاختبار الذي تريد تفعيله:</label>
-            <select name="active_test">""" + test_select_options + """</select>
-            <button type="submit" style="background: #2563eb;">تفعيل هذا الاختبار وفتح قاعة الانتظار</button>
+            <label>اختر الاختبار:</label>
+            <select name="active_test">{test_select_options}</select>
+            <button type="submit" style="background: #2563eb;">تفعيل وفتح قاعة الانتظار</button>
         </form>
         
-        """ + teacher_qr_html + """
+        {teacher_qr_html}
         
         <hr style="margin: 20px 0;">
-        <h3>📚 إدارة الاختبارات الخاصة بك</h3>
-        """ + (tests_management_html if tests_management_html else "<p>لا توجد اختبارات مضافة بعد على هذا الجهاز.</p>") + """
+        <h3>📚 إدارة الاختبارات</h3>
+        {tests_management_html if tests_management_html else "<p>لا توجد اختبارات مضافة.</p>"}
         
         <hr style="margin: 20px 0;">
         <h3>إضافة اختبار جديد</h3>
@@ -331,8 +310,10 @@ def teacher_dashboard():
 
 @app.route('/teacher/delete_test/<path:test_name>', methods=['POST'])
 def delete_test(test_name):
-    t_id = get_device_id()
-    dev_data = load_teacher_data(t_id)
+    email = session.get('teacher_email')
+    if not email:
+        return redirect(url_for('index'))
+    dev_data = load_teacher_data(email)
     tests = dev_data["tests"]
     active_data = dev_data["active_test"]
     results = dev_data["results"]
@@ -343,14 +324,15 @@ def delete_test(test_name):
             active_data['status'] = 'waiting'
         if test_name in results:
             del results[test_name]
-        save_teacher_data(t_id, dev_data)
+        save_teacher_data(email, dev_data)
     return redirect(url_for('teacher_dashboard'))
 
 @app.route('/teacher/edit_test/<path:test_name>', methods=['GET', 'POST'])
 def edit_test(test_name):
-    t_id = get_device_id()
-    dev_data = load_teacher_data(t_id)
-
+    email = session.get('teacher_email')
+    if not email:
+        return redirect(url_for('index'))
+    dev_data = load_teacher_data(email)
     tests = dev_data.get("tests", {})
     if test_name not in tests:
         return redirect(url_for('teacher_dashboard'))
@@ -374,7 +356,7 @@ def edit_test(test_name):
                 "answer": ans
             })
             
-            save_teacher_data(t_id, dev_data)
+            save_teacher_data(email, dev_data)
             msg = "تم إضافة السؤال بنجاح"
 
     questions = tests.get(test_name, [])
@@ -395,11 +377,11 @@ def edit_test(test_name):
         <p style="color: green; font-weight: bold;">{msg}</p>
         
         <h3>أسئلة الاختبار الحالية:</h3>
-        {q_list_html if q_list_html else "<p>لا توجد أسئلة في هذا الاختبار بعد.</p>"}
+        {q_list_html if q_list_html else "<p>لا توجد أسئلة بعد.</p>"}
         
         <hr style="margin: 20px 0;">
-        <h3>➕ إضافة سؤال جديد لهذا الاختبار</h3>
-        <form method="POST" onsubmit="playClickSound()">
+        <h3>➕ إضافة سؤال جديد</h3>
+        <form method="POST">
             <input type="hidden" name="action" value="add_question">
             <input type="text" name="question" placeholder="نص السؤال" required>
             <input type="text" name="opt0" placeholder="الخيار الأول" required>
@@ -419,35 +401,62 @@ def edit_test(test_name):
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
-@app.route('/student_join', defaults={'teacher': None}, methods=['GET', 'POST'])
-@app.route('/student_entry/<teacher>', methods=['GET', 'POST'])
-def student_entry(teacher):
-    t_id = teacher or session.get('teacher_id')
-    if not t_id:
-        t_id = get_device_id()
+@app.route('/student_entry/<teacher_key>', methods=['GET', 'POST'])
+def student_entry(teacher_key):
+    # البحث عن الأستاذ المطابق للمفتاح الخاص بالإيميل في قاعدة البيانات
+    # سنقوم بالبحث في السجلات أو تخزين مرجع سريع
+    session['teacher_key'] = teacher_key
     
-    session['teacher_id'] = t_id
-    dev_data = load_teacher_data(t_id)
+    # محاولة العثور على الإيميل عبر البحث في الملفات أو Supabase إذا أمكن، أو استخدام المفتاح مباشرة
+    # للتسهيل، سنستخدم teacher_key للبحث عن البيانات المطابقة
+    active_test_name = ""
+    active_status = "waiting"
+    
+    # سنبحث عبر الـ kv_store في supabase أو الملفات المحلية
+    found_email = None
+    if supabase:
+        try:
+            res = supabase.table('kv_store').select('key, value').ilike('key', 'teacher_email_%').execute()
+            for row in res.data:
+                if get_safe_teacher_key(row['key'].replace('teacher_email_', '')) == teacher_key:
+                    found_email = row['key'].replace('teacher_email_', '')
+                    break
+        except:
+            pass
+            
+    if not found_email:
+        # البحث محلياً
+        for f in os.listdir('.'):
+            if f.startswith('teacher_') and f.endswith('.json'):
+                em = f.replace('teacher_', '').replace('.json', '')
+                if em == teacher_key:
+                    found_email = em
+                    break
+                    
+    session['teacher_email_target'] = found_email
+    dev_data = load_teacher_data(found_email) if found_email else {"tests": {}, "active_test": {"active": "", "status": "waiting"}, "results": {}}
     active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     
     if not test_name:
         content = """
             <h2>تنبيه</h2>
-            <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار حتى الآن. الرجاء الانتظار قليلاً...</p>
+            <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار حتى الآن...</p>
             <script>
                 setTimeout(function() {
+                    var activeEl = document.activeElement;
+                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                        return;
+                    }
                     window.location.reload();
                 }, 3000);
             </script>
-            <br>
-            <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
         """
         return render_template_string(HTML_TEMPLATE, content=content)
 
     if request.method == 'POST':
         name = request.form.get('student_name', '').strip()
-        if name:
+        if name and found_email:
             session['student_name'] = name
             session['start_time'] = time.time()
             results = dev_data["results"]
@@ -458,20 +467,17 @@ def student_entry(teacher):
             existing_names = [p['name'] for p in results[test_name].get("participants", [])]
             if name not in existing_names:
                 results[test_name]["participants"].append({"name": name, "joined_at": time.time()})
-                save_teacher_data(t_id, dev_data)
+                save_teacher_data(found_email, dev_data)
             
             return redirect(url_for('waiting_room'))
     
-    content = """
+    content = f"""
         <h2>تسجيل دخول التلميذ</h2>
-        <p>الاختبار الحالي: <b>""" + test_name + """</b></p>
-        <p>الرجاء إدخال اسمك ولقبك للالتحاق بقاعة الانتظار:</p>
+        <p>الاختبار الحالي: <b>{test_name}</b></p>
         <form method="POST">
             <input type="text" name="student_name" placeholder="الاسم واللقب" required>
             <button type="submit">دخول قاعة الانتظار</button>
         </form>
-        <br>
-        <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
@@ -480,26 +486,31 @@ def waiting_room():
     if 'student_name' not in session:
         return redirect(url_for('index'))
     
-    t_id = session.get('teacher_id')
-    dev_data = load_teacher_data(t_id)
+    found_email = session.get('teacher_email_target')
+    dev_data = load_teacher_data(found_email) if found_email else {"active_test": {"active": "", "status": "waiting"}, "results": {}}
     active_data = dev_data["active_test"]
     test_name = active_data.get('active')
     status = active_data.get('status', 'waiting')
     
+    if status == 'finished':
+        return redirect(url_for('show_final_results', test_name=test_name))
+        
     if test_name and status == 'started':
         return redirect(url_for('quiz', test_name=test_name))
         
-    content = """
+    content = f"""
         <h2>قاعة الانتظار</h2>
-        <p>مرحباً <b>""" + session.get('student_name', '') + """</b></p>
-        <p>⏳ في انتظار إشارة الانطلاق من الأستاذ للاختبار (<b>""" + str(test_name) + """</b>)...</p>
+        <p>مرحباً <b>{session.get('student_name', '')}</b></p>
+        <p>⏳ في انتظار إشارة الانطلاق للاختبار (<b>{test_name}</b>)...</p>
         <script>
             setTimeout(function() {
+                var activeEl = document.activeElement;
+                if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+                    return;
+                }
                 window.location.reload();
             }, 3000);
         </script>
-        <br>
-        <a href="/" class="btn" style="background: #6b7280;">الرجوع للرئيسية</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
@@ -508,11 +519,11 @@ def quiz(test_name):
     if 'student_name' not in session:
         return redirect(url_for('index'))
     
-    t_id = session.get('teacher_id')
-    dev_data = load_teacher_data(t_id)
+    found_email = session.get('teacher_email_target')
+    dev_data = load_teacher_data(found_email) if found_email else {"tests": {}, "active_test": {"status": "waiting"}, "results": {}}
     active_data = dev_data["active_test"]
     if active_data.get('status') == 'finished':
-        return redirect(url_for('student_waiting_results', test_name=test_name))
+        return redirect(url_for('show_final_results', test_name=test_name))
 
     tests = dev_data["tests"]
     if test_name not in tests:
@@ -530,7 +541,7 @@ def quiz(test_name):
         score = 0
         total = len(questions)
         for i, q in enumerate(questions):
-            user_ans = request.form.get('q_' + str(i))
+            user_ans = request.form.get(f'q_{i}')
             if user_ans is not None and int(user_ans) == q['answer']:
                 score += 1
         
@@ -544,7 +555,7 @@ def quiz(test_name):
             "total": total,
             "time": time_taken
         })
-        save_teacher_data(t_id, dev_data)
+        save_teacher_data(found_email, dev_data)
         return redirect(url_for('student_waiting_results', test_name=test_name))
         
     q_html = ""
@@ -559,10 +570,10 @@ def quiz(test_name):
         </div>
         """
         
-    content = """
-        <h2>اختبار: """ + test_name + """</h2>
+    content = f"""
+        <h2>اختبار: {test_name}</h2>
         <form method="POST">
-            """ + q_html + """
+            {q_html}
             <button type="submit" style="background: #059669;">إرسال الإجابات النهائية</button>
         </form>
     """
@@ -573,16 +584,16 @@ def student_waiting_results(test_name):
     if 'student_name' not in session:
         return redirect(url_for('index'))
         
-    t_id = session.get('teacher_id')
-    dev_data = load_teacher_data(t_id)
+    found_email = session.get('teacher_email_target')
+    dev_data = load_teacher_data(found_email) if found_email else {"active_test": {"status": "waiting"}}
     active_data = dev_data["active_test"]
     status = active_data.get('status', 'waiting')
     
     if status != 'finished':
-        content = """
+        content = f"""
             <h2>في انتظار النتائج</h2>
-            <p>✅ تم إرسال إجاباتك بنجاح يا <b>""" + session['student_name'] + """</b>!</p>
-            <p>⏳ يرجى الانتظار حتى ينهي بقية الزملاء أو ينتهي الوقت لإعلان النتائج...</p>
+            <p>✅ تم إرسال إجاباتك بنجاح يا <b>{session['student_name']}</b>!</p>
+            <p>⏳ في انتظار إنهاء الاختبار وإعلان النتائج من طرف الأستاذ...</p>
             <script>
                 setTimeout(function() {
                     var activeEl = document.activeElement;
@@ -599,8 +610,9 @@ def student_waiting_results(test_name):
 
 @app.route('/results/<test_name>')
 def show_final_results(test_name):
-    t_id = session.get('teacher_id') or get_device_id()
-    dev_data = load_teacher_data(t_id)
+    email = session.get('teacher_email')
+    found_email = email or session.get('teacher_email_target')
+    dev_data = load_teacher_data(found_email) if found_email else {"tests": {}, "results": {}}
     tests = dev_data["tests"]
     questions = tests.get(test_name, [])
     results = dev_data["results"]
@@ -609,7 +621,7 @@ def show_final_results(test_name):
     
     ranking_html = ""
     for rank, res in enumerate(sorted_scores, 1):
-        ranking_html += "<tr><td>" + str(rank) + "</td><td>" + res['name'] + "</td><td><b>" + str(res['score']) + " / " + str(res['total']) + "</b></td><td>" + str(res['time']) + " ثانية</td></tr>"
+        ranking_html += f"<tr><td>{rank}</td><td>{res['name']}</td><td><b>{res['score']} / {res['total']}</b></td><td>{res['time']} ثانية</td></tr>"
         
     correction_html = ""
     for idx, q in enumerate(questions):
@@ -621,18 +633,19 @@ def show_final_results(test_name):
             </div>
         """
         
-    content = """
-        <h2>🏆 النتائج النهائية والإصلاح: """ + test_name + """</h2>
+    back_url = url_for('teacher_dashboard') if email else url_for('index')
+    content = f"""
+        <h2>🏆 النتائج النهائية والإصلاح: {test_name}</h2>
         <table class="ranking">
-            <tr><th>المرتبة</th><th>الاسم واللقب</th><th>النقاط</th><th>الوقت المستغرق</th></tr>
-            """ + (ranking_html if ranking_html else "<tr><td colspan='4'>لا توجد نتائج مسجلة.</td></tr>") + """
+            <tr><th>المرتبة</th><th>الاسم واللقب</th><th>النقاط</th><th>الوقت</th></tr>
+            {ranking_html if ranking_html else "<tr><td colspan='4'>لا توجد نتائج مسجلة.</td></tr>"}
         </table>
         
-        <h3 style="margin-top: 30px;">📖 إصلاح الاختبار (Correction):</h3>
-        """ + correction_html + """
+        <h3 style="margin-top: 30px;">📖 إصلاح الاختبار:</h3>
+        {correction_html}
         
         <br>
-        <a href="/" class="btn" style="background: #6b7280;">العودة للرئيسية</a>
+        <a href="{back_url}" class="btn" style="background: #6b7280;">العودة</a>
     """
     return render_template_string(HTML_TEMPLATE, content=content)
 
