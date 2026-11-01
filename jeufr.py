@@ -126,6 +126,19 @@ HTML_TEMPLATE = """
 </html>
 """
 
+# قالب الجافاسكريبت المشترك للتحديث التلقائي الآمن تماماً من أخطاء بايثون
+AUTO_REFRESH_SCRIPT = """
+<script>
+    setTimeout(function() {
+        var activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
+            return;
+        }
+        window.location.reload();
+    }, 3000);
+</script>
+"""
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -234,31 +247,29 @@ def teacher_dashboard():
 
         parts_list = participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حالياً...</li>"
         
-        # كود HTML نظيف وآمن تماماً من أخطاء Syntax
-        teacher_qr_html = (
-            '<div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">'
-            '<p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 رابط QR كود دخول التلاميذ:</p>'
-            f'<img src="{qr_url}" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">'
-            f'<p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;"><a href="{quiz_url}" target="_blank">{quiz_url}</a></p>'
-            '<hr style="margin: 15px 0;">'
-            '<h3>👥 متابعة التلاميذ:</h3>'
-            '<ul style="text-align: right; background: #fff; padding: 10px 20px; border-radius: 6px; border: 1px solid #d1d5db;">'
-            f'{parts_list}'
-            '</ul>'
-            '<script>'
-            'setTimeout(function() {'
-            'var activeEl = document.activeElement;'
-            "if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {"
-            'return;'
-            '}'
-            'window.location.reload();'
-            '}, 3000);'
-            '</script>'
-            '<div style="margin-top: 20px;">'
-            f'{control_buttons}'
-            '</div>'
-            '</div>'
-        )
+        # قالب نقي بدون f-string يمنع تماماً أي مشاكل Syntax
+        teacher_qr_template = """
+            <div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">
+                <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 رابط QR كود دخول التلاميذ:</p>
+                <img src="REPLACE_QR_URL" alt="QR Code" style="width: 150px; height: 150px; border-radius: 6px;">
+                <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;"><a href="REPLACE_QUIZ_URL" target="_blank">REPLACE_QUIZ_URL</a></p>
+                <hr style="margin: 15px 0;">
+                <h3>👥 متابعة التلاميذ:</h3>
+                <ul style="text-align: right; background: #fff; padding: 10px 20px; border-radius: 6px; border: 1px solid #d1d5db;">
+                    REPLACE_PARTS_LIST
+                </ul>
+                AUTO_REFRESH_SCRIPT_PLACEHOLDER
+                <div style="margin-top: 20px;">
+                    REPLACE_CONTROL_BUTTONS
+                </div>
+            </div>
+        """
+        teacher_qr_html = (teacher_qr_template
+                           .replace("REPLACE_QR_URL", qr_url)
+                           .replace("REPLACE_QUIZ_URL", quiz_url)
+                           .replace("REPLACE_PARTS_LIST", parts_list)
+                           .replace("AUTO_REFRESH_SCRIPT_PLACEHOLDER", AUTO_REFRESH_SCRIPT)
+                           .replace("REPLACE_CONTROL_BUTTONS", control_buttons))
 
     test_select_options = ""
     for name in tests.keys():
@@ -434,16 +445,8 @@ def student_entry(teacher_key):
         content = """
             <h2>تنبيه</h2>
             <p>⏳ لم يقم الأستاذ بتفعيل أي اختبار حتى الآن...</p>
-            <script>
-                setTimeout(function() {
-                    var activeEl = document.activeElement;
-                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
-                        return;
-                    }
-                    window.location.reload();
-                }, 3000);
-            </script>
-        """
+            AUTO_REFRESH_SCRIPT_PLACEHOLDER
+        """.replace("AUTO_REFRESH_SCRIPT_PLACEHOLDER", AUTO_REFRESH_SCRIPT)
         return render_template_string(HTML_TEMPLATE, content=content)
 
     if request.method == 'POST':
@@ -490,20 +493,20 @@ def waiting_room():
     if test_name and status == 'started':
         return redirect(url_for('quiz', test_name=test_name))
         
-    content = """
+    student_name_val = session.get('student_name', '')
+    test_name_val = test_name if test_name else ''
+    
+    waiting_template = """
         <h2>قاعة الانتظار</h2>
-        <p>مرحباً <b>{session.get('student_name', '')}</b></p>
-        <p>⏳ في انتظار إشارة الانطلاق للاختبار (<b>{test_name}</b>)...</p>
-        <script>
-            setTimeout(function() {
-                var activeEl = document.activeElement;
-                if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
-                    return;
-                }
-                window.location.reload();
-            }, 3000);
-        </script>
+        <p>مرحباً <b>REPLACE_STUDENT_NAME</b></p>
+        <p>⏳ في انتظار إشارة الانطلاق للاختبار (<b>REPLACE_TEST_NAME</b>)...</p>
+        AUTO_REFRESH_SCRIPT_PLACEHOLDER
     """
+    content = (waiting_template
+               .replace("REPLACE_STUDENT_NAME", student_name_val)
+               .replace("REPLACE_TEST_NAME", test_name_val)
+               .replace("AUTO_REFRESH_SCRIPT_PLACEHOLDER", AUTO_REFRESH_SCRIPT))
+               
     return render_template_string(HTML_TEMPLATE, content=content)
 
 @app.route('/quiz/<test_name>', methods=['GET', 'POST'])
@@ -582,20 +585,16 @@ def student_waiting_results(test_name):
     status = active_data.get('status', 'waiting')
     
     if status != 'finished':
-        content = f"""
+        student_name_val = session.get('student_name', '')
+        res_waiting_template = """
             <h2>في انتظار النتائج</h2>
-            <p>✅ تم إرسال إجاباتك بنجاح يا <b>{session['student_name']}</b>!</p>
+            <p>✅ تم إرسال إجاباتك بنجاح يا <b>REPLACE_STUDENT_NAME</b>!</p>
             <p>⏳ في انتظار إنهاء الاختبار وإعلان النتائج من طرف الأستاذ...</p>
-            <script>
-                setTimeout(function() {
-                    var activeEl = document.activeElement;
-                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA')) {
-                        return;
-                    }
-                    window.location.reload();
-                }, 3000);
-            </script>
+            AUTO_REFRESH_SCRIPT_PLACEHOLDER
         """
+        content = (res_waiting_template
+                   .replace("REPLACE_STUDENT_NAME", student_name_val)
+                   .replace("AUTO_REFRESH_SCRIPT_PLACEHOLDER", AUTO_REFRESH_SCRIPT))
         return render_template_string(HTML_TEMPLATE, content=content)
     else:
         return redirect(url_for('show_final_results', test_name=test_name))
@@ -643,7 +642,6 @@ def show_final_results(test_name):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
 
 
 
