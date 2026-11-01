@@ -490,7 +490,7 @@ def waiting_room():
     if test_name and status == 'started':
         return redirect(url_for('quiz', test_name=test_name))
         
-    content = f"""
+    content = """
         <h2>قاعة الانتظار</h2>
         <p>مرحباً <b>{session.get('student_name', '')}</b></p>
         <p>⏳ في انتظار إشارة الانطلاق للاختبار (<b>{test_name}</b>)...</p>
