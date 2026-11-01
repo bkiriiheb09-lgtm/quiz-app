@@ -138,7 +138,7 @@ def index():
     <h2>مرحباً بكم في منصة الاختبارات التفاعلية</h2>
     <p>👨‍🏫 تسجيل دخول الأستاذ بالبريد الإلكتروني:</p>
     <form method="POST">
-        <input type="email5" name="teacher_email" placeholder="أدخل بريدك الإلكتروني (Email)" required style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px;">
+        <input type="email" name="teacher_email" placeholder="أدخل بريدك الإلكتروني (Email)" required style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px;">
         <button type="submit" style="background: #059669;">دخول إلى لوحة التحكم</button>
     </form>
     """
@@ -234,6 +234,7 @@ def teacher_dashboard():
 
         parts_list = participants_html if participants_html else "<li>لا يوجد تلاميذ مسجلون حالياً...</li>"
         
+        # كود HTML نظيف وآمن تماماً من أخطاء Syntax
         teacher_qr_html = (
             '<div style="margin-top: 20px; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; text-align: center;">'
             '<p style="margin: 0 0 10px 0; font-weight: bold; color: #1e3a8a;">📱 رابط QR كود دخول التلاميذ:</p>'
@@ -403,16 +404,8 @@ def edit_test(test_name):
 
 @app.route('/student_entry/<teacher_key>', methods=['GET', 'POST'])
 def student_entry(teacher_key):
-    # البحث عن الأستاذ المطابق للمفتاح الخاص بالإيميل في قاعدة البيانات
-    # سنقوم بالبحث في السجلات أو تخزين مرجع سريع
     session['teacher_key'] = teacher_key
     
-    # محاولة العثور على الإيميل عبر البحث في الملفات أو Supabase إذا أمكن، أو استخدام المفتاح مباشرة
-    # للتسهيل، سنستخدم teacher_key للبحث عن البيانات المطابقة
-    active_test_name = ""
-    active_status = "waiting"
-    
-    # سنبحث عبر الـ kv_store في supabase أو الملفات المحلية
     found_email = None
     if supabase:
         try:
@@ -425,7 +418,6 @@ def student_entry(teacher_key):
             pass
             
     if not found_email:
-        # البحث محلياً
         for f in os.listdir('.'):
             if f.startswith('teacher_') and f.endswith('.json'):
                 em = f.replace('teacher_', '').replace('.json', '')
